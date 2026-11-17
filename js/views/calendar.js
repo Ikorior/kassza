@@ -386,6 +386,10 @@ async function renderForm(el, ctx, cal) {
 
   el.innerHTML = `
     <form class="stack" id="appt-form" novalidate>
+      <div class="form-bar">
+        <button type="button" class="btn small" data-cancel>Mégse</button>
+        <button class="btn small primary">Mentés</button>
+      </div>
       <label class="field">
         <span>Név</span>
         <input id="a-name" type="text" maxlength="80" autocomplete="off" value="${esc(a.name)}">
@@ -457,7 +461,7 @@ async function renderForm(el, ctx, cal) {
       ${incomeBlock}
       <button class="btn primary" id="a-save">${editing ? 'Módosítás mentése' : 'Találkozó mentése'}</button>
       ${editing ? '<button type="button" class="btn danger-ghost" id="a-del">Találkozó törlése</button>' : ''}
-      <button type="button" class="btn ghost" id="a-cancel">Mégse</button>
+      <button type="button" class="btn ghost" id="a-cancel" data-cancel>Mégse</button>
     </form>`;
 
   const $ = id => el.querySelector('#' + id);
@@ -493,7 +497,10 @@ async function renderForm(el, ctx, cal) {
     if (!toManual && $('a-time').value) $('a-to').value = endTime($('a-time').value, WINDOW);
   });
   $('a-to').addEventListener('input', () => { toManual = !!$('a-to').value; });
-  form.addEventListener('input', () => { $('a-err').hidden = true; });
+  // Volt-e módosítás (a Mégse ilyenkor rákérdez).
+  let dirty = false;
+  form.addEventListener('input', () => { $('a-err').hidden = true; dirty = true; });
+  form.addEventListener('change', () => { dirty = true; });
   const showErr = (msg, field) => {
     $('a-err').textContent = msg;
     $('a-err').hidden = false;
@@ -595,7 +602,15 @@ async function renderForm(el, ctx, cal) {
       ctx.go('calendar', { apptId: appt.id });
     } else if (b.id === 'a-income-open') {
       ctx.go('entry', { editId: editing.incomeTxId });
-    } else if (b.id === 'a-cancel') {
+    } else if (b.hasAttribute('data-cancel')) {
+      if (dirty) {
+        const yes = await confirmDialog({
+          title: editing ? 'Elveted a módosításokat?' : 'Elveted az új találkozót?',
+          text: editing ? 'A találkozó a korábbi állapotában marad.' : 'A beírt adatok nem mentődnek.',
+          ok: 'Elvetés',
+        });
+        if (!yes) return;
+      }
       back(editing?.date);
     } else if (b.id === 'a-del') {
       const yes = await confirmDialog({

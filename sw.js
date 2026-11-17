@@ -1,8 +1,13 @@
-// Offline működés: az app fájljai a készüléken gyorsítótárazva.
-// Új verzió kiadásakor a háttérben frissül, a következő indításkor már az új fut.
+// Offline működés és frissítés.
+// - Az app saját fájljai: mindig a hálózatról jönnek (a GitHub 10 perces gyorsítótárát is
+//   megkerülve), így indításkor mindig a legfrissebb változat fut. Térerő nélkül, vagy ha a
+//   hálózat 4 mp alatt nem válaszol, a készüléken tárolt példány töltődik be.
+// - A Firebase programkönyvtár verziószámos címről jön, az sosem változik: elég a tárolt példány.
+// Új kiadásnál a CACHE számát növelni kell (ez látszik a Beállításokban verzióként).
 
-const CACHE = 'kassza-v4';
+const CACHE = 'kassza-v5';
 const SDK = 'https://www.gstatic.com/firebasejs/';
+const TIMEOUT = 4000;
 const FILES = [
   './',
   'index.html',
@@ -29,7 +34,11 @@ const FILES = [
 ];
 
 self.addEventListener('install', event => {
-  event.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));
+  // cache: 'reload' – a telepítés se a böngésző régi, gyorsítótárazott példányait mentse el.
+  event.waitUntil(
+    caches.open(CACHE)
+      .then(c => c.addAll(FILES.map(f => new Request(f, { cache: 'reload' }))))
+      .then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', event => {
@@ -39,23 +48,42 @@ self.addEventListener('activate', event => {
       .then(() => self.clients.claim()));
 });
 
-// Stale-while-revalidate: azonnal a tárolt változat, közben frissítés a hálózatról.
+async function networkFirst(req) {
+  const cache = await caches.open(CACHE);
+  const fromCache = () => cache.match(req, { ignoreSearch: true })
+    .then(hit => hit || (req.mode === 'navigate' ? cache.match('./') : undefined));
+
+  const network = fetch(req.url, { cache: 'no-cache', credentials: 'same-origin' }).then(res => {
+    if (res.ok) cache.put(req, res.clone());
+    return res;
+  });
+
+  // Lassú hálózatnál ne várakoztassuk sokáig: 4 mp után a tárolt példány (ha van).
+  const timeout = new Promise(resolve => setTimeout(resolve, TIMEOUT)).then(fromCache);
+  try {
+    const res = await Promise.race([network, timeout]);
+    return res || (await network);
+  } catch {
+    const hit = await fromCache();
+    if (hit) return hit;
+    throw new Error('offline, és nincs tárolt példány');
+  }
+}
+
+async function cacheFirst(req) {
+  const cache = await caches.open(CACHE);
+  const hit = await cache.match(req);
+  if (hit) return hit;
+  const res = await fetch(req);
+  if (res.ok) cache.put(req, res.clone());
+  return res;
+}
+
 self.addEventListener('fetch', event => {
   const req = event.request;
-  // Saját fájlok és a Firebase programkönyvtár (hogy az app térerő nélkül is elinduljon).
-  // A Firebase adatforgalmához nem nyúlunk.
+  if (req.method !== 'GET') return;
   const own = new URL(req.url).origin === location.origin;
-  if (req.method !== 'GET' || !(own || req.url.startsWith(SDK))) return;
-
-  event.respondWith(
-    caches.open(CACHE).then(async cache => {
-      const cached = await cache.match(req, { ignoreSearch: true });
-      const fresh = fetch(req)
-        .then(res => {
-          if (res.ok) cache.put(req, res.clone());
-          return res;
-        })
-        .catch(() => cached);
-      return cached || fresh;
-    }));
+  if (own) event.respondWith(networkFirst(req));
+  else if (req.url.startsWith(SDK)) event.respondWith(cacheFirst(req));
+  // A Firebase adatforgalmához nem nyúlunk.
 });

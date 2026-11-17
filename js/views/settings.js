@@ -57,6 +57,11 @@ export async function renderSettings(el, ctx) {
     </section>`;
 
   const scaleSetting = display.getSetting();
+  // A verziószám az offline tároló nevéből jön (sw.js → CACHE), így nem kell külön karbantartani.
+  let version = null;
+  try {
+    version = (await caches.keys()).find(k => k.startsWith('kassza-v'))?.slice('kassza-v'.length) ?? null;
+  } catch { /* nincs offline tároló */ }
 
   el.innerHTML = `
     <section>
@@ -116,7 +121,7 @@ export async function renderSettings(el, ctx) {
       <p class="hint">Safariban koppints a Megosztás gombra, majd válaszd a „Főképernyőhöz adás” lehetőséget. Ezután az app saját ikonról, teljes képernyőn és internet nélkül is indul.</p>
     </section>`}
 
-    <p class="foot">Kassza · 1.0</p>`;
+    <p class="foot">Kassza · ${version ? `verzió ${version}` : 'fejlesztői változat'}</p>`;
 
   const again = () => ctx.go('settings', { keepScroll: true });
 

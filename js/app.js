@@ -86,5 +86,27 @@ db.onChange(() => {
 
 // Offline működés: csak HTTPS-en (éles), vagy helyi teszthez a ?sw paraméterrel.
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || new URLSearchParams(location.search).has('sw'))) {
-  navigator.serviceWorker.register('sw.js').catch(err => console.warn('Service worker hiba:', err));
+  const hadController = !!navigator.serviceWorker.controller;
+
+  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(reg => {
+    // A háttérből visszahozott app is nézzen frissítést (az iPhone nem mindig indítja újra).
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') reg.update().catch(() => {});
+    });
+  }).catch(err => console.warn('Service worker hiba:', err));
+
+  // Új változat vette át az irányítást: újratöltjük, hogy azonnal az fusson.
+  // Ha épp félig kitöltött tétel van a képernyőn, megvárjuk, amíg az app háttérbe kerül.
+  let reloading = false;
+  const reload = () => { if (!reloading) { reloading = true; location.reload(); } };
+  const busy = () => !!document.querySelector('dialog[open]')
+    || (state.tab === 'entry' && ['#amount', '#client', '#note', '#newcat-name']
+      .some(sel => document.querySelector(sel)?.value?.trim()));
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController) return; // legelső telepítés: nincs mit frissíteni
+    if (!busy()) return reload();
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') reload();
+    });
+  });
 }

@@ -1,40 +1,22 @@
+/* Az app mindig sötét témájú, a telefon világos/sötét beállításától függetlenül. */
 :root {
-  --bg: #f5f4f0;
-  --surface: #ffffff;
-  --ink: #17201d;
-  --muted: #5d6763;
-  --line: #dedcd5;
-  --accent: #0f6b5f;
-  --accent-ink: #ffffff;
-  --pos: #0f6b5f;
-  --neg: #b3261e;
-  --track: #ebe9e3;
+  --bg: #101312;
+  --surface: #1a1e1c;
+  --ink: #eef1ef;
+  --muted: #9aa5a0;
+  --line: #2f3632;
+  --accent: #3fb8a6;
+  --accent-ink: #06211d;
+  --pos: #4cc4b1;
+  --neg: #ff8a80;
+  --track: #262b29;
   /* Naptár: biztos (zöld), bizonytalan (sárga), elmaradó (piros) */
-  --maybe: #a16207;
-  --ok-bg: #c9eadf;
-  --maybe-bg: #f8e3a0;
-  --bad-bg: #f6cdc8;
+  --maybe: #f5c518;
+  --ok-bg: rgba(76, 196, 177, 0.30);
+  --maybe-bg: rgba(245, 197, 24, 0.26);
+  --bad-bg: rgba(255, 110, 100, 0.28);
   --radius: 0.875rem;
-  color-scheme: light dark;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #101312;
-    --surface: #1a1e1c;
-    --ink: #eef1ef;
-    --muted: #9aa5a0;
-    --line: #2f3632;
-    --accent: #3fb8a6;
-    --accent-ink: #06211d;
-    --pos: #4cc4b1;
-    --neg: #ff8a80;
-    --track: #262b29;
-    --maybe: #f5c518;
-    --ok-bg: rgba(76, 196, 177, 0.30);
-    --maybe-bg: rgba(245, 197, 24, 0.26);
-    --bad-bg: rgba(255, 110, 100, 0.28);
-  }
+  color-scheme: dark; /* a dátum-, idő- és lenyíló mezők is sötétek */
 }
 
 * { box-sizing: border-box; }

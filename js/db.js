@@ -16,5 +16,6 @@ export const {
   getClients, addClient,
   getMeta, setMeta,
   getTodos, getTodo, saveTodo, deleteTodo,
+  getAppts, getAppt, saveAppt, deleteAppt,
   exportAll, importAll,
 } = backend;

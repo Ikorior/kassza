@@ -7,6 +7,7 @@ import { renderSettings } from './views/settings.js';
 import { renderLogin } from './views/login.js';
 import { renderSearch } from './views/search.js';
 import { renderTodos } from './views/todos.js';
+import { renderCalendar } from './views/calendar.js';
 
 const TABS = {
   entry: { title: 'Új tétel', render: renderEntry },
@@ -15,6 +16,7 @@ const TABS = {
   month: { title: 'Havi összesítő', render: renderMonth },
   charts: { title: 'Grafikonok', render: renderCharts },
   todos: { title: 'Teendők', render: renderTodos },
+  calendar: { title: 'Naptár', render: renderCalendar },
   settings: { title: 'Beállítások', render: renderSettings },
 };
 
@@ -28,7 +30,7 @@ let navToken = 0;
 
 // Nézetváltás; a patch-ben adható át pl. { day }, { month }, { editId }, { presetDay }.
 async function go(tab, patch = {}) {
-  Object.assign(state, { editId: null, presetDay: null, returnTo: null }, patch, { tab });
+  Object.assign(state, { editId: null, presetDay: null, returnTo: null, apptId: null, apptNew: false, apptDate: null }, patch, { tab });
   for (const b of tabButtons) {
     if (b.dataset.tab === tab) b.setAttribute('aria-current', 'page');
     else b.removeAttribute('aria-current');
@@ -89,7 +91,10 @@ db.onChange(() => {
   // A keresést sem rajzoljuk újra, hogy a beírt keresőszó és a görgetés megmaradjon.
   // A teendőket csak akkor, ha épp nem gépelünk bennük.
   const typing = document.activeElement?.matches?.('#view input');
-  if ((['day', 'month', 'charts'].includes(state.tab) || (state.tab === 'todos' && !typing))
+  // A naptárat sem, ha épp egy találkozót szerkesztünk.
+  const editingAppt = !!document.querySelector('#appt-form');
+  if ((['day', 'month', 'charts'].includes(state.tab)
+       || (['todos', 'calendar'].includes(state.tab) && !typing && !editingAppt))
       && !document.querySelector('dialog[open]')) {
     go(state.tab, { keepScroll: true });
   }

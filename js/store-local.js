@@ -3,7 +3,7 @@
 import { SEED, uid, sortTx } from './store-common.js';
 
 const DB = 'kassza';
-const VERSION = 2; // 2: teendőlisták
+const VERSION = 3; // 2: teendőlisták, 3: naptár
 
 export const cloud = false;
 
@@ -27,6 +27,7 @@ function open() {
       if (!has('clients')) db.createObjectStore('clients', { keyPath: 'name' });
       if (!has('meta')) db.createObjectStore('meta', { keyPath: 'key' });
       if (!has('todos')) db.createObjectStore('todos', { keyPath: 'id' });
+      if (!has('appointments')) db.createObjectStore('appointments', { keyPath: 'id' });
     };
     r.onsuccess = () => resolve(r.result);
     r.onerror = () => reject(r.error);
@@ -116,22 +117,30 @@ export const getTodo = async id => done((await os('todos')).get(id));
 export const saveTodo = async list => done((await os('todos', 'readwrite')).put(list));
 export const deleteTodo = async id => done((await os('todos', 'readwrite')).delete(id));
 
+/* ----- Naptár: találkozók ----- */
+
+export const getAppts = async () => done((await os('appointments')).getAll());
+export const getAppt = async id => done((await os('appointments')).get(id));
+export const saveAppt = async appt => done((await os('appointments', 'readwrite')).put(appt));
+export const deleteAppt = async id => done((await os('appointments', 'readwrite')).delete(id));
+
 /* ----- Mentés / visszatöltés ----- */
 
-const BACKUP = ['transactions', 'categories', 'clients', 'todos'];
+const BACKUP = ['transactions', 'categories', 'clients', 'todos', 'appointments'];
 
 export async function exportAll() {
   const db = await open();
   const tx = db.transaction(BACKUP);
-  const [transactions, categories, clients, todos] = await Promise.all(BACKUP.map(n => done(tx.objectStore(n).getAll())));
-  return { app: 'kassza', version: 1, exportedAt: new Date().toISOString(), categories, transactions, clients, todos };
+  const [transactions, categories, clients, todos, appointments] =
+    await Promise.all(BACKUP.map(n => done(tx.objectStore(n).getAll())));
+  return { app: 'kassza', version: 1, exportedAt: new Date().toISOString(), categories, transactions, clients, todos, appointments };
 }
 
 // A jelenlegi adatokat a mentés tartalmára cseréli (egy tranzakcióban).
-// A teendőlistákhoz csak akkor nyúl, ha a mentés tartalmazza őket.
+// A teendőlistákhoz és a naptárhoz csak akkor nyúl, ha a mentés tartalmazza őket.
 export async function importAll(data) {
   const db = await open();
-  const names = ['transactions', 'categories', 'clients', ...('todos' in data ? ['todos'] : [])];
+  const names = ['transactions', 'categories', 'clients', ...['todos', 'appointments'].filter(n => n in data)];
   const tx = db.transaction(names, 'readwrite');
   for (const name of names) {
     const s = tx.objectStore(name);

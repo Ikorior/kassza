@@ -29,7 +29,7 @@ let ready = null;      // az első betöltés ígérete
 let unsubs = [];
 let cutoff = 0;        // ennél újabb tételeket élőben figyeljük (kb. az utolsó 12 hónap)
 let pending = false;   // van-e még fel nem töltött tétel
-const mem = { categories: [], clients: [], recent: [], todos: [], settings: {} };
+const mem = { categories: [], clients: [], recent: [], todos: [], appts: [], settings: {} };
 const changeListeners = new Set();
 
 const col = name => collection(fs, 'users', user.uid, name);
@@ -63,6 +63,7 @@ function stop() {
   mem.clients = [];
   mem.recent = [];
   mem.todos = [];
+  mem.appts = [];
   mem.settings = {};
 }
 
@@ -126,6 +127,9 @@ export function init() {
       }),
       listen(col('todos'), snap => {
         mem.todos = snap.docs.map(d => d.data());
+      }),
+      listen(col('appointments'), snap => {
+        mem.appts = snap.docs.map(d => d.data());
       }),
       listen(query(col('transactions'), where('timestamp', '>=', cutoff)), snap => {
         mem.recent = snap.docs.map(d => d.data());
@@ -239,12 +243,30 @@ export async function deleteTodo(id) {
   mem.todos = mem.todos.filter(t => t.id !== id);
 }
 
+/* ----- Naptár: találkozók (közösek) ----- */
+
+export async function getAppts() {
+  return [...mem.appts];
+}
+export async function getAppt(id) {
+  return mem.appts.find(a => a.id === id);
+}
+export async function saveAppt(appt) {
+  fire(setDoc(ref('appointments', appt.id), appt));
+  mem.appts = [...mem.appts.filter(a => a.id !== appt.id), appt];
+}
+export async function deleteAppt(id) {
+  fire(deleteDoc(ref('appointments', id)));
+  mem.appts = mem.appts.filter(a => a.id !== id);
+}
+
 /* ----- Mentés / visszatöltés ----- */
 
 export async function exportAll() {
-  const [transactions, categories, clients, todos] = await Promise.all(
-    ['transactions', 'categories', 'clients', 'todos'].map(async n => (await getDocs(col(n))).docs.map(d => d.data())));
-  return { app: 'kassza', version: 1, exportedAt: new Date().toISOString(), categories, transactions, clients, todos };
+  const [transactions, categories, clients, todos, appointments] = await Promise.all(
+    ['transactions', 'categories', 'clients', 'todos', 'appointments']
+      .map(async n => (await getDocs(col(n))).docs.map(d => d.data())));
+  return { app: 'kassza', version: 1, exportedAt: new Date().toISOString(), categories, transactions, clients, todos, appointments };
 }
 
 // A felhőben lévő adatokat a mentés tartalmára cseréli. Internetkapcsolat kell hozzá.
@@ -256,12 +278,13 @@ export async function importAll(data) {
     ...data.categories.map(c => [ref('categories', c.id), c]),
     ...(data.clients ?? []).filter(c => c?.name).map(c => [ref('clients', clientId(c.name)), { name: c.name }]),
     ...(data.todos ?? []).filter(t => t?.id).map(t => [ref('todos', t.id), t]),
+    ...(data.appointments ?? []).filter(a => a?.id).map(a => [ref('appointments', a.id), a]),
   ];
   const keep = new Set(targets.map(([r]) => r.path));
 
-  // A teendőlistákhoz csak akkor nyúlunk, ha a mentés tartalmazza őket
+  // A teendőlistákhoz és a naptárhoz csak akkor nyúlunk, ha a mentés tartalmazza őket
   // (régi mentés visszatöltése vagy a tesztadatok törlése nem érinti őket).
-  const names = ['transactions', 'categories', 'clients', ...('todos' in data ? ['todos'] : [])];
+  const names = ['transactions', 'categories', 'clients', ...['todos', 'appointments'].filter(n => n in data)];
   const ops = [];
   for (const name of names) {
     (await getDocs(col(name))).forEach(d => { if (!keep.has(d.ref.path)) ops.push(b => b.delete(d.ref)); });

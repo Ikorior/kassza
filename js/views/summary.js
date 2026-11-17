@@ -3,6 +3,7 @@ import {
   ft, signed, dayKey, timeStr, parseDay, startOfDay, addDays, startOfMonth, addMonths,
   weekday, dayShort, monthLabel, esc, totals,
 } from '../format.js';
+import { monthStartDay, setMonthStartDay, periodOf, currentAnchor, rangeText } from '../period.js';
 
 export function cards({ inc, exp, bal }) {
   return `
@@ -92,31 +93,10 @@ function breakdown(items, label, neg = false) {
     </li>`).join('')}</ul>`;
 }
 
-// Egyedi hónap: a kezdőnaptól (1–28) a következő hónap kezdőnapja előtti napig tart.
-// A beállítás ezen a készüléken mentődik.
-const monthStartDay = async () => {
-  const v = Number(await db.getMeta('monthStart'));
-  return v >= 1 && v <= 28 ? v : 1;
-};
-const periodOf = (anchor, s) => ({
-  from: new Date(anchor.getFullYear(), anchor.getMonth(), s),
-  to: new Date(anchor.getFullYear(), anchor.getMonth() + 1, s),
-});
-const shortDate = (d, withYear) =>
-  d.toLocaleDateString('hu-HU', { ...(withYear ? { year: 'numeric' } : {}), month: 'short', day: 'numeric' });
-
 export async function renderMonth(el, ctx) {
   const s = await monthStartDay();
-  // Első megnyitáskor (vagy a kezdőnap módosítása után) a mai napot tartalmazó időszak.
-  if (!ctx.state.monthSet) {
-    const now = new Date();
-    ctx.state.month = addMonths(startOfMonth(now), now.getDate() >= s ? 0 : -1);
-    ctx.state.monthSet = true;
-  }
-  const month = startOfMonth(ctx.state.month);
+  const month = currentAnchor(ctx.state, s);
   const { from, to } = periodOf(month, s);
-  const last = addDays(to, -1);
-  const rangeText = `${shortDate(from, true)} – ${shortDate(last, last.getFullYear() !== from.getFullYear())}`;
 
   const [txs, cats] = await Promise.all([
     db.txInRange(from.getTime(), to.getTime()),
@@ -149,7 +129,7 @@ export async function renderMonth(el, ctx) {
   el.innerHTML = `
     <div class="pager">
       <button type="button" data-step="-1" aria-label="Előző hónap">‹</button>
-      <div class="pager-mid"><strong>${monthLabel(month)}</strong><small>${rangeText}</small></div>
+      <div class="pager-mid"><strong>${monthLabel(month)}</strong><small>${rangeText({ from, to })}</small></div>
       <button type="button" data-step="1" aria-label="Következő hónap">›</button>
     </div>
     <div class="period-set">
@@ -178,7 +158,7 @@ export async function renderMonth(el, ctx) {
   };
   el.onchange = async e => {
     if (e.target.id !== 'mstart') return;
-    await db.setMeta('monthStart', Number(e.target.value));
+    await setMonthStartDay(Number(e.target.value));
     ctx.go('month', { monthSet: false });
   };
 }

@@ -1,5 +1,6 @@
 import * as db from '../db.js';
-import { ft, startOfMonth, addMonths, monthLabel, monthShort, esc } from '../format.js';
+import { ft, addDays, addMonths, dayKey, monthLabel, monthShort, esc } from '../format.js';
+import { monthStartDay, periodOf, anchorFor, currentAnchor, rangeText } from '../period.js';
 
 const COLORS = ['#0f766e', '#d97706', '#4f46e5', '#be185d', '#65a30d', '#0891b2', '#7c3aed', '#78716c'];
 const KEY = `<p class="key"><span><i class="k-pos"></i>Bevétel</span><span><i class="k-neg"></i>Kiadás</span></p>`;
@@ -25,32 +26,42 @@ function bar(cls, x, w, value, max, tip) {
   return `<rect class="${cls}" x="${x.toFixed(2)}" y="${(BASE - h).toFixed(2)}" width="${w.toFixed(2)}" height="${h.toFixed(2)}" rx="1"><title>${esc(tip)}</title></rect>`;
 }
 
-function dailyChart(txs, month) {
-  const n = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
+// A kiválasztott időszak napjai (pl. okt. 10. – nov. 9.), naponként egy oszloppár.
+function dailyChart(txs, period, label) {
+  const days = [];
+  for (let d = period.from; d < period.to; d = addDays(d, 1)) days.push(d);
+  const n = days.length;
+  const index = new Map(days.map((d, i) => [dayKey(d), i]));
   const inc = Array(n).fill(0), exp = Array(n).fill(0);
-  for (const t of txs) (t.type === 'income' ? inc : exp)[new Date(t.timestamp).getDate() - 1] += t.amount;
+  for (const t of txs) {
+    const i = index.get(dayKey(new Date(t.timestamp)));
+    if (i != null) (t.type === 'income' ? inc : exp)[i] += t.amount;
+  }
   const max = Math.max(...inc, ...exp);
-  if (!max) return `<p class="chart-empty">Ebben a hónapban még nincs rögzített tétel.</p>`;
+  if (!max) return `<p class="chart-empty">Ebben az időszakban még nincs rögzített tétel.</p>`;
 
   const slot = W / n, bw = slot * 0.38;
   let inner = '';
-  for (let i = 0; i < n; i++) {
+  days.forEach((d, i) => {
     const x = i * slot + slot * 0.1;
-    inner += bar('b-pos', x, bw, inc[i], max, `${i + 1}. – bevétel: ${ft(inc[i])}`);
-    inner += bar('b-neg', x + bw + slot * 0.04, bw, exp[i], max, `${i + 1}. – kiadás: ${ft(exp[i])}`);
-    if (i === 0 || (i + 1) % 5 === 0) {
-      inner += `<text x="${(i * slot + slot / 2).toFixed(1)}" y="${H - 8}" text-anchor="middle">${i + 1}</text>`;
+    const when = d.toLocaleDateString('hu-HU', { month: 'short', day: 'numeric' });
+    inner += bar('b-pos', x, bw, inc[i], max, `${when} – bevétel: ${ft(inc[i])}`);
+    inner += bar('b-neg', x + bw + slot * 0.04, bw, exp[i], max, `${when} – kiadás: ${ft(exp[i])}`);
+    // Tengelyfelirat: az időszak első napja, a hónapváltás, és minden 5. nap (ha nem zsúfolt).
+    const day = d.getDate();
+    if (i === 0 || day === 1 || (day % 5 === 0 && day !== 30 && i > 1)) {
+      inner += `<text x="${(i * slot + slot / 2).toFixed(1)}" y="${H - 8}" text-anchor="middle">${day === 1 && i > 0 ? esc(monthShort(d)) : day}</text>`;
     }
-  }
-  return KEY + frame(max, inner, `Napi bevétel és kiadás, ${monthLabel(month)}`);
+  });
+  return KEY + frame(max, inner, `Napi bevétel és kiadás, ${label}`);
 }
 
-function trendChart(all, month) {
+function trendChart(all, month, s) {
   const months = Array.from({ length: 6 }, (_, i) => addMonths(month, i - 5));
   const inc = Array(6).fill(0), exp = Array(6).fill(0);
   for (const t of all) {
-    const d = new Date(t.timestamp);
-    const i = months.findIndex(m => m.getFullYear() === d.getFullYear() && m.getMonth() === d.getMonth());
+    const a = anchorFor(new Date(t.timestamp), s);
+    const i = months.findIndex(m => m.getFullYear() === a.getFullYear() && m.getMonth() === a.getMonth());
     if (i >= 0) (t.type === 'income' ? inc : exp)[i] += t.amount;
   }
   const max = Math.max(...inc, ...exp);
@@ -103,28 +114,34 @@ function donut(txs, cmap, emptyText, label) {
 }
 
 export async function renderCharts(el, ctx) {
-  const month = startOfMonth(ctx.state.month);
+  // Ugyanaz az egyedi hónap, mint a Havi lapon (kezdőnap, kiválasztott hónap).
+  const s = await monthStartDay();
+  const month = currentAnchor(ctx.state, s);
+  const period = periodOf(month, s);
+  const sixStart = periodOf(addMonths(month, -5), s).from;
   const [all, cats] = await Promise.all([
-    db.txInRange(addMonths(month, -5).getTime(), addMonths(month, 1).getTime()),
+    db.txInRange(sixStart.getTime(), period.to.getTime()),
     db.getCategories(),
   ]);
   const cmap = new Map(cats.map(c => [c.id, c]));
-  const txs = all.filter(t => t.timestamp >= month.getTime());
+  const txs = all.filter(t => t.timestamp >= period.from.getTime());
+  const range = rangeText(period);
 
   el.innerHTML = `
     <div class="pager">
       <button type="button" data-step="-1" aria-label="Előző hónap">‹</button>
-      <div class="pager-mid"><strong>${monthLabel(month)}</strong></div>
+      <div class="pager-mid"><strong>${monthLabel(month)}</strong><small>${range}</small></div>
       <button type="button" data-step="1" aria-label="Következő hónap">›</button>
     </div>
     <h2>Napi bevétel és kiadás</h2>
-    <div class="chart">${dailyChart(txs, month)}</div>
+    <div class="chart">${dailyChart(txs, period, range)}</div>
     <h2>Kiadások megoszlása</h2>
-    <div class="chart">${donut(txs.filter(t => t.type === 'expense'), cmap, 'Ebben a hónapban nincs kiadás.', 'Kiadások megoszlása költségtípusonként')}</div>
+    <div class="chart">${donut(txs.filter(t => t.type === 'expense'), cmap, 'Ebben az időszakban nincs kiadás.', 'Kiadások megoszlása költségtípusonként')}</div>
     <h2>Bevételek megoszlása</h2>
-    <div class="chart">${donut(txs.filter(t => t.type === 'income'), cmap, 'Ebben a hónapban nincs bevétel.', 'Bevételek megoszlása forrásonként')}</div>
+    <div class="chart">${donut(txs.filter(t => t.type === 'income'), cmap, 'Ebben az időszakban nincs bevétel.', 'Bevételek megoszlása forrásonként')}</div>
     <h2>Utolsó hat hónap</h2>
-    <div class="chart">${trendChart(all, month)}</div>`;
+    <div class="chart">${trendChart(all, month, s)}</div>
+    ${s !== 1 ? `<p class="hint" style="margin-top:12px">Egy hónap a ${s}. naptól a következő hónap ${s - 1}. napjáig tart (Havi lap → Hónap kezdőnapja).</p>` : ''}`;
 
   el.onclick = e => {
     const b = e.target.closest('button[data-step]');

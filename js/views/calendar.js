@@ -645,8 +645,8 @@ async function renderForm(el, ctx, cal) {
         await db.saveTx(tx);
         await db.addClient(appt.name);
         await db.saveAppt({ ...appt, incomeTxId: tx.id });
-        toast(`Bevétel mentve: ${ft(tx.amount)}`);
-        ctx.go('calendar', { apptId: appt.id }); // a találkozón maradunk: látszik, hogy mentve
+        toast(`Találkozó és bevétel mentve: ${ft(tx.amount)}`);
+        back(appt.date); // vissza a naptár listájába
         return true;
       })();
     } else if (b.id === 'a-income-open') {

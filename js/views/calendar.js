@@ -331,12 +331,42 @@ function renderSearch(body, cal, all) {
 
 /* ---------- Találkozó felvétele / módosítása ---------- */
 
+// A találkozó vége: a legkésőbbi érkezés + ügyfélidő (ms). Éjfélen átnyúló idősávot is kezel.
+function apptEnd(a) {
+  const d = parseDay(a.date);
+  const to = arriveTo(a);
+  const [h, m] = to.split(':').map(Number);
+  let end = new Date(d.getFullYear(), d.getMonth(), d.getDate(), h, m).getTime();
+  if (to < a.time) end += 24 * 3600 * 1000;
+  return end + (a.duration || 0) * 60 * 1000;
+}
+
+// A bevétel megjegyzése: a díjtételek külön-külön, kötőjellel elválasztva.
+const incomeNote = a =>
+  `Óradíj: ${ft(a.rate || 0)} - Ügyfélidő: ${durLabel(a.duration)} - Kiszállási díj: ${ft(a.travel || 0)}`
+  + ` - Fehér: ${ft(a.white || 0)} - Extra: ${ft(a.extra || 0)}`;
+
 async function renderForm(el, ctx, cal) {
   const editing = ctx.state.apptId ? await db.getAppt(ctx.state.apptId) : null;
   if (ctx.state.apptId && !editing) {
     // Közben a másik telefonon törölték.
     toast('Ez a találkozó már nem létezik');
     return ctx.go('calendar');
+  }
+
+  // Bevétel mentése: csak már mentett és lejárt találkozónál; ha már van hozzá bevétel, azt mutatjuk.
+  const ended = editing ? apptEnd(editing) : 0;
+  const linkedTx = editing?.incomeTxId ? await db.getTx(editing.incomeTxId) : null;
+  const endText = ended
+    ? `${short(new Date(ended))} ${pad(new Date(ended).getHours())}:${pad(new Date(ended).getMinutes())}` : '';
+  let incomeBlock = '';
+  if (editing && linkedTx) {
+    incomeBlock = `
+      <button type="button" class="btn income-btn done" id="a-income-open">✓ Bevétel mentve (${ft(linkedTx.amount)}) – megnyitás</button>`;
+  } else if (editing && ended <= Date.now()) {
+    incomeBlock = '<button type="button" class="btn income-btn" id="a-income">Bevétel mentése</button>';
+  } else if (editing) {
+    incomeBlock = `<p class="hint">A bevétel a találkozó vége után menthető (${endText}).</p>`;
   }
 
   const now = new Date();
@@ -424,6 +454,7 @@ async function renderForm(el, ctx, cal) {
       </div>
 
       <p class="error" id="a-err" role="alert" hidden></p>
+      ${incomeBlock}
       <button class="btn primary" id="a-save">${editing ? 'Módosítás mentése' : 'Találkozó mentése'}</button>
       ${editing ? '<button type="button" class="btn danger-ghost" id="a-del">Találkozó törlése</button>' : ''}
       <button type="button" class="btn ghost" id="a-cancel">Mégse</button>
@@ -476,25 +507,26 @@ async function renderForm(el, ctx, cal) {
     ctx.go('calendar');
   };
 
-  form.addEventListener('submit', async e => {
-    e.preventDefault();
+  // Az űrlap ellenőrzése és a találkozó összeállítása; hiba esetén null (és hibaüzenet).
+  function collect() {
+    const fail = (msg, field) => { showErr(msg, field); return null; };
     const name = $('a-name').value.trim();
-    if (!name) return showErr('Add meg a nevet.', $('a-name'));
-    if (!$('a-date').value) return showErr('Add meg a dátumot.', $('a-date'));
-    if (!$('a-time').value) return showErr('Add meg az érkezés kezdetét.', $('a-time'));
+    if (!name) return fail('Add meg a nevet.', $('a-name'));
+    if (!$('a-date').value) return fail('Add meg a dátumot.', $('a-date'));
+    if (!$('a-time').value) return fail('Add meg az érkezés kezdetét.', $('a-time'));
     const time = $('a-time').value.slice(0, 5);
     const to = ($('a-to').value || endTime(time, WINDOW)).slice(0, 5);
     if (to <= time && to !== endTime(time, WINDOW)) {
-      return showErr('Az érkezési idősáv vége legyen későbbi, mint a kezdete.', $('a-to'));
+      return fail('Az érkezési idősáv vége legyen későbbi, mint a kezdete.', $('a-to'));
     }
     const start = `${$('a-date').value}T${time}`;
     const confirm1 = $('a-c1').value.slice(0, 16);
     const confirm2 = $('a-c2').value.slice(0, 16);
     for (const [c, id] of [[confirm1, 'a-c1'], [confirm2, 'a-c2']]) {
-      if (c && c > start) return showErr('A megerősítő időpont a találkozó előtt legyen.', $(id));
+      if (c && c > start) return fail('A megerősítő időpont a találkozó előtt legyen.', $(id));
     }
 
-    const appt = {
+    return {
       id: editing?.id ?? db.uid(),
       name,
       date: $('a-date').value,
@@ -508,9 +540,16 @@ async function renderForm(el, ctx, cal) {
       ...fees(),
       amount: computeTotal(), // Összes díj
       status: statusSel.value,
+      incomeTxId: editing?.incomeTxId ?? '', // a belőle mentett bevétel
       createdAt: editing?.createdAt ?? Date.now(),
       updatedAt: Date.now(),
     };
+  }
+
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    const appt = collect();
+    if (!appt) return;
     $('a-save').disabled = true;
     await db.saveAppt(appt);
     toast(editing ? 'Találkozó módosítva' : `Találkozó mentve: ${short(parseDay(appt.date))} ${appt.time}`);
@@ -524,6 +563,38 @@ async function renderForm(el, ctx, cal) {
       // A megerősítő időpont kiürítése (az iPhone választója csak visszaállítani tud).
       $(b.dataset.clear).value = '';
       $('a-err').hidden = true;
+    } else if (b.id === 'a-income') {
+      // Bevétel a találkozóból: Összes díj, ügyfél neve, kezdési dátum + érkezés eleje, díjtételek.
+      const appt = collect();
+      if (!appt) return;
+      if (!appt.amount) return showErr('Az összes díj 0 Ft – adj meg óradíjat vagy más díjat.', $('a-rate'));
+      const yes = await confirmDialog({
+        title: 'Bevétel mentése?',
+        text: `${ft(appt.amount)} bevétel – ${appt.name}, ${short(parseDay(appt.date))} ${appt.time}. A találkozón végzett módosítások is mentődnek.`,
+        ok: 'Bevétel mentése',
+      });
+      if (!yes) return;
+      const cats = await db.getCategories();
+      const cat = cats.find(c => c.type === 'income' && c.isClientPayment && !c.archived)
+        ?? cats.find(c => c.type === 'income' && !c.archived);
+      if (!cat) return showErr('Nincs bevételi forrás. Vegyél fel egyet a Beállításokban.');
+      const tx = {
+        id: db.uid(),
+        type: 'income',
+        amount: appt.amount,
+        categoryId: cat.id,
+        clientName: appt.name,
+        note: incomeNote(appt),
+        timestamp: new Date(`${appt.date}T${appt.time}`).getTime(),
+        createdAt: Date.now(),
+      };
+      await db.saveTx(tx);
+      await db.addClient(appt.name);
+      await db.saveAppt({ ...appt, incomeTxId: tx.id });
+      toast(`Bevétel mentve: ${ft(tx.amount)}`);
+      ctx.go('calendar', { apptId: appt.id });
+    } else if (b.id === 'a-income-open') {
+      ctx.go('entry', { editId: editing.incomeTxId });
     } else if (b.id === 'a-cancel') {
       back(editing?.date);
     } else if (b.id === 'a-del') {

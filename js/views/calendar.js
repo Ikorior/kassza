@@ -357,7 +357,16 @@ async function renderForm(el, ctx, cal) {
   // Bevétel mentése: csak már mentett és lejárt találkozónál; ha már van hozzá bevétel, azt mutatjuk.
   // A gomb és a tájékoztatás is benne van; hogy melyik látszik, az űrlap aktuális adataiból
   // dől el (lásd updateIncome), így a dátum jövőbe írása után a gomb azonnal eltűnik.
-  const linkedTx = editing?.incomeTxId ? await db.getTx(editing.incomeTxId) : null;
+  // A bevételt közben törölhették (pl. a bevételi listából): ilyenkor nincs kapcsolt bevétel,
+  // és a lekérés hibája sem akadályozhatja meg a szerkesztő megnyitását.
+  let linkedTx = null;
+  if (editing?.incomeTxId) {
+    try {
+      linkedTx = (await db.getTx(editing.incomeTxId, new Date(`${editing.date}T${editing.time}`).getTime())) ?? null;
+    } catch (err) {
+      console.warn('A kapcsolt bevétel nem kérhető le:', err);
+    }
+  }
   const endLabel = ms => `${short(new Date(ms))} ${pad(new Date(ms).getHours())}:${pad(new Date(ms).getMinutes())}`;
   let incomeBlock = '';
   if (editing && linkedTx) {
@@ -570,7 +579,7 @@ async function renderForm(el, ctx, cal) {
       ...fees(),
       amount: computeTotal(), // Összes díj
       status: statusSel.value,
-      incomeTxId: editing?.incomeTxId ?? '', // a belőle mentett bevétel
+      incomeTxId: linkedTx ? editing.incomeTxId : '', // a belőle mentett bevétel (törölt bevételnél üres)
       createdAt: editing?.createdAt ?? Date.now(),
       updatedAt: Date.now(),
     };

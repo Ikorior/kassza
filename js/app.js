@@ -1,5 +1,6 @@
 import * as display from './display.js';
 import * as db from './db.js';
+import { toast } from './ui.js';
 import { renderEntry } from './views/entry.js';
 import { renderDay, renderMonth } from './views/summary.js';
 import { renderCharts } from './views/charts.js';
@@ -39,7 +40,14 @@ async function go(tab, patch = {}) {
   // Minden nézet saját konténerbe rajzol; ha közben újabb váltás indult, a régit eldobjuk.
   const token = ++navToken;
   const page = document.createElement('div');
-  await TABS[tab].render(page, ctx);
+  try {
+    await TABS[tab].render(page, ctx);
+  } catch (err) {
+    // Ne „fagyjon be” a képernyő: jelezzük, és maradunk az előző nézeten.
+    console.error(err);
+    if (token === navToken) toast('Ezt most nem sikerült megnyitni. Próbáld újra.');
+    return;
+  }
   if (token !== navToken) return;
   view.replaceChildren(page);
   if (!patch.keepScroll) view.scrollTop = 0;

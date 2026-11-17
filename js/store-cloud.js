@@ -9,7 +9,7 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
 import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
-  collection, doc, setDoc, deleteDoc, getDoc, getDocs, onSnapshot, query, where,
+  collection, doc, setDoc, deleteDoc, getDoc, getDocFromCache, getDocs, onSnapshot, query, where,
   writeBatch, getCountFromServer,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 
@@ -173,8 +173,25 @@ export async function txInRange(from, to) {
   return sortTx(snap.docs.map(d => d.data()));
 }
 
-export async function getTx(id) {
-  return mem.recent.find(t => t.id === id) ?? (await getDoc(ref('transactions', id))).data();
+// Egy tétel lekérése. Sosem akad el: ha nem található (pl. közben törölték) vagy a hálózat
+// nem válaszol, undefined. knownTs: a tétel várható időpontja, ha ismert (pl. a naptárból) –
+// ha a figyelt időszakba esik és nincs a listában, akkor törölték, felesleges a felhőt kérdezni.
+export async function getTx(id, knownTs) {
+  const hit = mem.recent.find(t => t.id === id);
+  if (hit) return hit;
+  if (knownTs != null && knownTs >= cutoff) return undefined;
+  const r = ref('transactions', id);
+  try {
+    const cached = await getDocFromCache(r);
+    if (cached.exists()) return cached.data();
+  } catch { /* nincs a készülék tárolójában */ }
+  try {
+    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000));
+    const snap = await Promise.race([getDoc(r), timeout]);
+    return snap.exists() ? snap.data() : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export async function saveTx(tx) {

@@ -38,7 +38,12 @@
     })();
   </script>
 
-  <header class="top"><h1 id="title">Kassza</h1></header>
+  <header class="top">
+    <h1 id="title">Kassza</h1>
+    <button type="button" class="icon-btn" data-tab="settings" aria-label="Beállítások" title="Beállítások">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h9M19 7h1M4 17h1M11 17h9"/><circle cx="16" cy="7" r="2.5"/><circle cx="8" cy="17" r="2.5"/></svg>
+    </button>
+  </header>
 
   <main id="view" tabindex="-1"></main>
 
@@ -63,9 +68,9 @@
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>
       <span>Grafikon</span>
     </button>
-    <button type="button" data-tab="settings">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h9M19 7h1M4 17h1M11 17h9"/><circle cx="16" cy="7" r="2.5"/><circle cx="8" cy="17" r="2.5"/></svg>
-      <span>Beállítás</span>
+    <button type="button" data-tab="todos">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3.5" width="16" height="17" rx="2.5"/><path d="M8 9l1.5 1.5L12 8M8 15l1.5 1.5L12 14M14.5 9.5H16M14.5 15.5H16"/></svg>
+      <span>Teendők</span>
     </button>
   </nav>
 

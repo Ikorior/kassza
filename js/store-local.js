@@ -3,7 +3,7 @@
 import { SEED, uid, sortTx } from './store-common.js';
 
 const DB = 'kassza';
-const VERSION = 1;
+const VERSION = 2; // 2: teendőlisták
 
 export const cloud = false;
 
@@ -21,10 +21,12 @@ function open() {
     const r = indexedDB.open(DB, VERSION);
     r.onupgradeneeded = () => {
       const db = r.result;
-      db.createObjectStore('transactions', { keyPath: 'id' }).createIndex('timestamp', 'timestamp');
-      db.createObjectStore('categories', { keyPath: 'id' });
-      db.createObjectStore('clients', { keyPath: 'name' });
-      db.createObjectStore('meta', { keyPath: 'key' });
+      const has = name => db.objectStoreNames.contains(name);
+      if (!has('transactions')) db.createObjectStore('transactions', { keyPath: 'id' }).createIndex('timestamp', 'timestamp');
+      if (!has('categories')) db.createObjectStore('categories', { keyPath: 'id' });
+      if (!has('clients')) db.createObjectStore('clients', { keyPath: 'name' });
+      if (!has('meta')) db.createObjectStore('meta', { keyPath: 'key' });
+      if (!has('todos')) db.createObjectStore('todos', { keyPath: 'id' });
     };
     r.onsuccess = () => resolve(r.result);
     r.onerror = () => reject(r.error);
@@ -107,19 +109,31 @@ export const setMeta = async (key, value) => done((await os('meta', 'readwrite')
 
 /* ----- Mentés / visszatöltés ----- */
 
+/* ----- Teendőlisták ----- */
+
+export const getTodos = async () => done((await os('todos')).getAll());
+export const getTodo = async id => done((await os('todos')).get(id));
+export const saveTodo = async list => done((await os('todos', 'readwrite')).put(list));
+export const deleteTodo = async id => done((await os('todos', 'readwrite')).delete(id));
+
+/* ----- Mentés / visszatöltés ----- */
+
+const BACKUP = ['transactions', 'categories', 'clients', 'todos'];
+
 export async function exportAll() {
   const db = await open();
-  const tx = db.transaction(['transactions', 'categories', 'clients']);
-  const [transactions, categories, clients] = await Promise.all(
-    ['transactions', 'categories', 'clients'].map(n => done(tx.objectStore(n).getAll())));
-  return { app: 'kassza', version: 1, exportedAt: new Date().toISOString(), categories, transactions, clients };
+  const tx = db.transaction(BACKUP);
+  const [transactions, categories, clients, todos] = await Promise.all(BACKUP.map(n => done(tx.objectStore(n).getAll())));
+  return { app: 'kassza', version: 1, exportedAt: new Date().toISOString(), categories, transactions, clients, todos };
 }
 
-// A jelenlegi adatokat teljes egészében a mentés tartalmára cseréli (egy tranzakcióban).
+// A jelenlegi adatokat a mentés tartalmára cseréli (egy tranzakcióban).
+// A teendőlistákhoz csak akkor nyúl, ha a mentés tartalmazza őket.
 export async function importAll(data) {
   const db = await open();
-  const tx = db.transaction(['transactions', 'categories', 'clients'], 'readwrite');
-  for (const name of ['transactions', 'categories', 'clients']) {
+  const names = ['transactions', 'categories', 'clients', ...('todos' in data ? ['todos'] : [])];
+  const tx = db.transaction(names, 'readwrite');
+  for (const name of names) {
     const s = tx.objectStore(name);
     s.clear();
     for (const row of data[name] ?? []) s.put(row);

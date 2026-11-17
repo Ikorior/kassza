@@ -6,6 +6,7 @@ import { renderCharts } from './views/charts.js';
 import { renderSettings } from './views/settings.js';
 import { renderLogin } from './views/login.js';
 import { renderSearch } from './views/search.js';
+import { renderTodos } from './views/todos.js';
 
 const TABS = {
   entry: { title: 'Új tétel', render: renderEntry },
@@ -13,12 +14,14 @@ const TABS = {
   search: { title: 'Keresés és lista', render: renderSearch },
   month: { title: 'Havi összesítő', render: renderMonth },
   charts: { title: 'Grafikonok', render: renderCharts },
+  todos: { title: 'Teendők', render: renderTodos },
   settings: { title: 'Beállítások', render: renderSettings },
 };
 
 const view = document.getElementById('view');
 const title = document.getElementById('title');
-const tabButtons = [...document.querySelectorAll('.tabs button')];
+// Az alsó fülsáv gombjai és a fejléc Beállítások gombja.
+const tabButtons = [...document.querySelectorAll('button[data-tab]')];
 
 const state = { tab: 'entry', day: new Date(), month: new Date(), editId: null, presetDay: null };
 let navToken = 0;
@@ -42,7 +45,11 @@ async function go(tab, patch = {}) {
 
 const ctx = { state, go };
 
-for (const b of tabButtons) b.addEventListener('click', () => go(b.dataset.tab));
+// A Teendők fülre koppintva (ha már ott vagyunk) vissza a listák áttekintéséhez.
+for (const b of tabButtons) {
+  b.addEventListener('click', () =>
+    go(b.dataset.tab, b.dataset.tab === 'todos' && state.tab === 'todos' ? { todoId: null } : {}));
+}
 
 function showMessage(text) {
   navToken++;
@@ -80,7 +87,10 @@ db.onAuth(async user => {
 // Az űrlapokat (új tétel, beállítások) nem rajzoljuk újra, hogy a beírt szöveg ne vesszen el.
 db.onChange(() => {
   // A keresést sem rajzoljuk újra, hogy a beírt keresőszó és a görgetés megmaradjon.
-  if (['day', 'month', 'charts'].includes(state.tab) && !document.querySelector('dialog[open]')) {
+  // A teendőket csak akkor, ha épp nem gépelünk bennük.
+  const typing = document.activeElement?.matches?.('#view input');
+  if ((['day', 'month', 'charts'].includes(state.tab) || (state.tab === 'todos' && !typing))
+      && !document.querySelector('dialog[open]')) {
     go(state.tab, { keepScroll: true });
   }
 });

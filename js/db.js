@@ -15,5 +15,6 @@ export const {
   txInRange, getTx, saveTx, deleteTx, txCount,
   getClients, addClient,
   getMeta, setMeta,
+  getTodos, getTodo, saveTodo, deleteTodo,
   exportAll, importAll,
 } = backend;

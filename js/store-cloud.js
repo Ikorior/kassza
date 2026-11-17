@@ -29,7 +29,7 @@ let ready = null;      // az első betöltés ígérete
 let unsubs = [];
 let cutoff = 0;        // ennél újabb tételeket élőben figyeljük (kb. az utolsó 12 hónap)
 let pending = false;   // van-e még fel nem töltött tétel
-const mem = { categories: [], clients: [], recent: [], settings: {} };
+const mem = { categories: [], clients: [], recent: [], todos: [], settings: {} };
 const changeListeners = new Set();
 
 const col = name => collection(fs, 'users', user.uid, name);
@@ -62,6 +62,7 @@ function stop() {
   mem.categories = [];
   mem.clients = [];
   mem.recent = [];
+  mem.todos = [];
   mem.settings = {};
 }
 
@@ -122,6 +123,9 @@ export function init() {
       }),
       listen(col('clients'), snap => {
         mem.clients = snap.docs.map(d => d.data().name);
+      }),
+      listen(col('todos'), snap => {
+        mem.todos = snap.docs.map(d => d.data());
       }),
       listen(query(col('transactions'), where('timestamp', '>=', cutoff)), snap => {
         mem.recent = snap.docs.map(d => d.data());
@@ -218,12 +222,29 @@ export async function setMeta(key, value) {
   fire(setDoc(settingsRef(), { [key]: value }, { merge: true }));
 }
 
+/* ----- Teendőlisták (közösek: minden belépett telefon ugyanazokat látja) ----- */
+
+export async function getTodos() {
+  return [...mem.todos];
+}
+export async function getTodo(id) {
+  return mem.todos.find(t => t.id === id);
+}
+export async function saveTodo(list) {
+  fire(setDoc(ref('todos', list.id), list));
+  mem.todos = [...mem.todos.filter(t => t.id !== list.id), list];
+}
+export async function deleteTodo(id) {
+  fire(deleteDoc(ref('todos', id)));
+  mem.todos = mem.todos.filter(t => t.id !== id);
+}
+
 /* ----- Mentés / visszatöltés ----- */
 
 export async function exportAll() {
-  const [transactions, categories, clients] = await Promise.all(
-    ['transactions', 'categories', 'clients'].map(async n => (await getDocs(col(n))).docs.map(d => d.data())));
-  return { app: 'kassza', version: 1, exportedAt: new Date().toISOString(), categories, transactions, clients };
+  const [transactions, categories, clients, todos] = await Promise.all(
+    ['transactions', 'categories', 'clients', 'todos'].map(async n => (await getDocs(col(n))).docs.map(d => d.data())));
+  return { app: 'kassza', version: 1, exportedAt: new Date().toISOString(), categories, transactions, clients, todos };
 }
 
 // A felhőben lévő adatokat a mentés tartalmára cseréli. Internetkapcsolat kell hozzá.
@@ -234,11 +255,15 @@ export async function importAll(data) {
     ...data.transactions.map(t => [ref('transactions', t.id), t]),
     ...data.categories.map(c => [ref('categories', c.id), c]),
     ...(data.clients ?? []).filter(c => c?.name).map(c => [ref('clients', clientId(c.name)), { name: c.name }]),
+    ...(data.todos ?? []).filter(t => t?.id).map(t => [ref('todos', t.id), t]),
   ];
   const keep = new Set(targets.map(([r]) => r.path));
 
+  // A teendőlistákhoz csak akkor nyúlunk, ha a mentés tartalmazza őket
+  // (régi mentés visszatöltése vagy a tesztadatok törlése nem érinti őket).
+  const names = ['transactions', 'categories', 'clients', ...('todos' in data ? ['todos'] : [])];
   const ops = [];
-  for (const name of ['transactions', 'categories', 'clients']) {
+  for (const name of names) {
     (await getDocs(col(name))).forEach(d => { if (!keep.has(d.ref.path)) ops.push(b => b.delete(d.ref)); });
   }
   for (const [r, row] of targets) ops.push(b => b.set(r, row));

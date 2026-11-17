@@ -61,8 +61,28 @@ button { cursor: pointer; touch-action: manipulation; }
 /* ---------- Keret ---------- */
 
 .top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
   padding: calc(env(safe-area-inset-top) + 0.75rem) calc(env(safe-area-inset-right) + 1rem) 0.5rem calc(env(safe-area-inset-left) + 1rem);
 }
+/* Beállítások gomb a fejlécben; negatív margóval, hogy ne növelje a fejléc magasságát. */
+.icon-btn {
+  flex: none;
+  width: 2.75rem;
+  height: 2.75rem;
+  margin: -0.625rem -0.625rem -0.625rem 0;
+  border: 0;
+  border-radius: 0.75rem;
+  background: none;
+  color: var(--muted);
+  display: grid;
+  place-items: center;
+}
+.icon-btn svg { width: 1.5rem; height: 1.5rem; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.icon-btn[aria-current="page"] { color: var(--accent); background: var(--track); }
+body.locked .icon-btn { display: none; }
 .top h1 { margin: 0; font-size: 1.5rem; line-height: 1.2; font-weight: 700; letter-spacing: -0.01em; }
 
 main {
@@ -356,6 +376,64 @@ input[type="range"] { width: 100%; min-height: 2.75rem; margin: 0; accent-color:
 .chart-empty { margin: 0; padding: 1.25rem 0; text-align: center; color: var(--muted); }
 
 /* ---------- Beállítások ---------- */
+
+/* ---------- Teendők ---------- */
+
+.todo-head { margin: -0.25rem 0 0.5rem -0.75rem; }
+.todo-card .tx-main .bar { display: block; margin-top: 0.5rem; }
+.todo { display: flex; align-items: center; gap: 0.125rem; min-height: 3.25rem; padding: 0 0.125rem 0 0.25rem; }
+.todo-check, .todo-more {
+  flex: none;
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 0;
+  border-radius: 0.75rem;
+  background: none;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+}
+.todo-more { font-size: 1.375rem; line-height: 1; letter-spacing: 0.05em; }
+.todo-check svg, .state-btn svg {
+  width: 1.625rem;
+  height: 1.625rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.todo-check svg .fill, .state-btn svg .fill { fill: currentColor; }
+.todo-check svg .mark, .state-btn svg .mark { stroke: var(--surface); stroke-width: 2.2; }
+.todo-text { flex: 1; min-width: 0; padding: 0.625rem 0.25rem; overflow-wrap: anywhere; }
+.todo-empty { padding: 1rem 0.875rem; color: var(--muted); }
+
+/* Kész: zöld pipa. Mégsem kell: áthúzva. Nem megoldható: szürke sor. */
+.todo.s-done .todo-check { color: var(--pos); }
+.todo.s-done .todo-text { color: var(--muted); }
+.todo.s-dropped .todo-text { color: var(--muted); text-decoration: line-through; text-decoration-thickness: 1.5px; }
+.todo.s-blocked { background: var(--track); }
+.todo.s-blocked .todo-text, .todo.s-blocked .todo-check { color: var(--muted); opacity: 0.75; }
+
+.state-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+.state-btn {
+  min-height: 3rem;
+  padding: 0.375rem 0.625rem;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: var(--surface);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  text-align: left;
+  color: var(--ink);
+}
+.state-btn.s-done svg { color: var(--pos); }
+.state-btn.s-dropped span { text-decoration: line-through; }
+.state-btn.s-blocked { color: var(--muted); }
+.state-btn[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 
 .cat-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.375rem 0.5rem 0.375rem 0.375rem; }
 .cat-row input { flex: 1; border-color: transparent; background: none; }

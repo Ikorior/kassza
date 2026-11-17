@@ -553,14 +553,38 @@ async function renderForm(el, ctx, cal) {
     };
   }
 
+  // A bevételt érintő adatok: ha ezek közül bármi változik, a már mentett bevétel nem érvényes.
+  const INCOME_FIELDS = ['name', 'date', 'time', 'duration', 'rate', 'travel', 'white', 'extra', 'amount'];
+  const incomeChanged = (before, after) => INCOME_FIELDS.some(k => (before[k] ?? 0) !== (after[k] ?? 0));
+  const txLabel = tx => `${ft(tx.amount)} (${short(new Date(tx.timestamp))})`;
+
   form.addEventListener('submit', async e => {
     e.preventDefault();
     const appt = collect();
     if (!appt) return;
+
+    // Módosított találkozó, amelyhez már van bevétel: a bevételt is töröljük (rákérdezés után).
+    let incomeRemoved = false;
+    if (editing && linkedTx && incomeChanged(editing, appt)) {
+      const yes = await confirmDialog({
+        title: 'A bevétel is törlődik',
+        text: `Ehhez a találkozóhoz már mentettél bevételt: ${txLabel(linkedTx)}. A módosítás miatt ez a bevétel törlődik; `
+          + 'utána a „Bevétel mentése” gombbal újra mentheted az új adatokkal.',
+        ok: 'Mentés, bevétel törlése',
+      });
+      if (!yes) return;
+      await db.deleteTx(linkedTx.id);
+      appt.incomeTxId = '';
+      incomeRemoved = true;
+    }
+
     $('a-save').disabled = true;
     await db.saveAppt(appt);
-    toast(editing ? 'Találkozó módosítva' : `Találkozó mentve: ${short(parseDay(appt.date))} ${appt.time}`);
-    back(appt.date);
+    toast(incomeRemoved ? `Találkozó módosítva, a ${ft(linkedTx.amount)}-os bevétel törölve`
+      : editing ? 'Találkozó módosítva' : `Találkozó mentve: ${short(parseDay(appt.date))} ${appt.time}`);
+    // Bevétel törlése után a találkozón maradunk, hogy újra menthető legyen.
+    if (incomeRemoved) ctx.go('calendar', { apptId: appt.id });
+    else back(appt.date);
   });
 
   el.onclick = async e => {
@@ -614,13 +638,16 @@ async function renderForm(el, ctx, cal) {
       back(editing?.date);
     } else if (b.id === 'a-del') {
       const yes = await confirmDialog({
-        title: 'Törlöd a találkozót?',
-        text: `${editing.name}, ${short(parseDay(editing.date))} ${editing.time}${db.cloud ? ' – minden belépett telefonról törlődik' : ''}. Ez nem vonható vissza.`,
-        ok: 'Találkozó törlése',
+        title: linkedTx ? 'Törlöd a találkozót és a bevételt?' : 'Törlöd a találkozót?',
+        text: `${editing.name}, ${short(parseDay(editing.date))} ${editing.time}`
+          + (linkedTx ? `. A hozzá mentett ${txLabel(linkedTx)} bevétel is törlődik` : '')
+          + `${db.cloud ? ' – minden belépett telefonról' : ''}. Ez nem vonható vissza.`,
+        ok: linkedTx ? 'Mindkettő törlése' : 'Találkozó törlése',
       });
       if (!yes) return;
+      if (linkedTx) await db.deleteTx(linkedTx.id);
       await db.deleteAppt(editing.id);
-      toast('Találkozó törölve');
+      toast(linkedTx ? `Találkozó és ${ft(linkedTx.amount)}-os bevétel törölve` : 'Találkozó törölve');
       back(editing.date);
     }
   };

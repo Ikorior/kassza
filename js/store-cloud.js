@@ -29,7 +29,7 @@ let ready = null;      // az első betöltés ígérete
 let unsubs = [];
 let cutoff = 0;        // ennél újabb tételeket élőben figyeljük (kb. az utolsó 12 hónap)
 let pending = false;   // van-e még fel nem töltött tétel
-const mem = { categories: [], clients: [], recent: [] };
+const mem = { categories: [], clients: [], recent: [], settings: {} };
 const changeListeners = new Set();
 
 const col = name => collection(fs, 'users', user.uid, name);
@@ -62,6 +62,7 @@ function stop() {
   mem.categories = [];
   mem.clients = [];
   mem.recent = [];
+  mem.settings = {};
 }
 
 /* ----- Élő figyelés ----- */
@@ -82,11 +83,35 @@ function listen(q, apply) {
   });
 }
 
+// A beállítások telefononként külön dokumentumban: users/{uid}/devices/{képernyőméret}.
+// A képernyőméret (pl. „402x874”) a telefon tárolójától független, így az app törlése vagy
+// újratelepítése után is ugyanazt a dokumentumot találja meg. Két egyforma típusú telefon
+// ugyanazt a beállítást kapná.
+export const deviceKey = () =>
+  `${Math.min(screen.width, screen.height)}x${Math.max(screen.width, screen.height)}`;
+const settingsRef = () => ref('devices', deviceKey());
+
+function listenSettings() {
+  return new Promise((resolve, reject) => {
+    let first = true;
+    unsubs.push(onSnapshot(settingsRef(), snap => {
+      mem.settings = snap.data() ?? {};
+      if (first) {
+        first = false;
+        resolve();
+      } else if (!snap.metadata.hasPendingWrites) {
+        changeListeners.forEach(fn => fn());
+      }
+    }, reject));
+  });
+}
+
 export function init() {
   return (ready ??= (async () => {
     const now = new Date();
     cutoff = new Date(now.getFullYear(), now.getMonth() - 12, 1).getTime();
     await Promise.all([
+      listenSettings(),
       listen(col('categories'), snap => {
         mem.categories = snap.docs.map(d => d.data());
         // Vadonatúj fiók: az induló típusok felvétele (rögzített azonosítókkal, hogy
@@ -176,13 +201,21 @@ export async function addClient(name) {
   if (!mem.clients.includes(name)) mem.clients.push(name);
 }
 
-/* ----- Készülékhez kötött apróságok (pl. utolsó fájlmentés ideje) ----- */
+/* ----- Telefononkénti beállítások (hónap kezdőnapja, méret, utolsó fájlmentés…) ----- */
+// A felhőben vannak (lásd settingsRef), így az app bezárása vagy a telefon tárolójának
+// ürítése után is megmaradnak. (A localStorage-ba írt adat az iPhone-on bezáráskor elveszhet.)
+
+const legacy = key => {
+  try { return JSON.parse(localStorage.getItem('kassza-' + key)); } catch { return undefined; }
+};
 
 export async function getMeta(key) {
-  try { return JSON.parse(localStorage.getItem('kassza-' + key)); } catch { return undefined; }
+  return key in mem.settings ? mem.settings[key] : legacy(key) ?? undefined;
 }
+
 export async function setMeta(key, value) {
-  try { localStorage.setItem('kassza-' + key, JSON.stringify(value)); } catch { /* nem létfontosságú */ }
+  mem.settings = { ...mem.settings, [key]: value };
+  fire(setDoc(settingsRef(), { [key]: value }, { merge: true }));
 }
 
 /* ----- Mentés / visszatöltés ----- */

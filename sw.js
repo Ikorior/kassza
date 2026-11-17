@@ -5,7 +5,7 @@
 // - A Firebase programkönyvtár verziószámos címről jön, az sosem változik: elég a tárolt példány.
 // Új kiadásnál a CACHE számát növelni kell (ez látszik a Beállításokban verzióként).
 
-const CACHE = 'kassza-v6';
+const CACHE = 'kassza-v7';
 const SDK = 'https://www.gstatic.com/firebasejs/';
 const TIMEOUT = 4000;
 const FILES = [

@@ -1,5 +1,6 @@
-// A felület mérete. Készülékenként mentődik (localStorage), mert telefononként más a jó méret.
-// „Automatikus” módban a képernyő méretéhez igazodik.
+// A felület mérete. „Automatikus” módban a képernyő méretéhez igazodik.
+// Mentés: a felhőben, telefononként külön (store-cloud.js → settingsRef), hogy bezárás után
+// se vesszen el; a localStorage csak gyorsítótár, hogy indításkor azonnal jó méretben jelenjen meg.
 
 const KEY = 'kassza-scale';
 export const MIN = 70;
@@ -39,6 +40,14 @@ export function setSetting(value) {
     else localStorage.setItem(KEY, String(value));
   } catch { /* privát módban nem menthető, de erre a munkamenetre érvényes */ }
   apply();
+}
+
+// A felhős beállítások már telefononként külön dokumentumban vannak, így elég egy kulcs.
+export const cloudKey = () => 'scale';
+
+// A felhőben tárolt érték ('auto' vagy szám) alkalmazása induláskor.
+export function applyStored(value) {
+  if (value === 'auto' || (Number(value) >= MIN && Number(value) <= MAX)) setSetting(value === 'auto' ? 'auto' : Number(value));
 }
 
 addEventListener('resize', () => { if (getSetting() === 'auto') apply(); });

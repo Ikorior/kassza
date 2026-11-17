@@ -1,4 +1,4 @@
-import './display.js';
+import * as display from './display.js';
 import * as db from './db.js';
 import { renderEntry } from './views/entry.js';
 import { renderDay, renderMonth } from './views/summary.js';
@@ -65,6 +65,7 @@ db.onAuth(async user => {
   }
   try {
     await db.init();
+    display.applyStored(await db.getMeta(display.cloudKey())); // a mentett méret
     document.body.classList.remove('locked');
     await go('entry');
   } catch (err) {

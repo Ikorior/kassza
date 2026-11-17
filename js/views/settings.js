@@ -89,6 +89,7 @@ export async function renderSettings(el, ctx) {
       <p class="hint">${db.syncPending()
         ? 'Vannak még fel nem töltött tételek – amint lesz internetkapcsolat, maguktól felkerülnek a felhőbe.'
         : 'Minden tétel fel van töltve a felhőbe. Aki ezzel a fiókkal lép be, ugyanezeket az adatokat látja.'}</p>
+      <p class="hint">A beállítások (megjelenítés mérete, hónap kezdőnapja) telefononként külön mentődnek a felhőbe. Ez a telefon: ${Math.min(screen.width, screen.height)}×${Math.max(screen.width, screen.height)} képernyő.</p>
       <div class="actions"><button type="button" class="btn" id="logout">Kijelentkezés</button></div>
     </section>` : ''}
 
@@ -128,15 +129,18 @@ export async function renderSettings(el, ctx) {
   const scale = el.querySelector('#scale');
   const scaleVal = el.querySelector('#scale-val');
   const scaleAuto = el.querySelector('#scale-auto');
+  const saveScale = () => db.setMeta(display.cloudKey(), display.getSetting()); // felhőbe
   scale.addEventListener('input', () => {
     display.setSetting(Number(scale.value)); // azonnal látszik
     scaleVal.textContent = scale.value + '%';
     scaleAuto.checked = false;
   });
+  scale.addEventListener('change', saveScale); // elengedéskor mentjük
   scaleAuto.addEventListener('change', () => {
     display.setSetting(scaleAuto.checked ? 'auto' : display.currentPercent());
     scale.value = display.currentPercent();
     scaleVal.textContent = scale.value + '%';
+    saveScale();
   });
   const err = el.querySelector('#restore-err');
   const fileInput = el.querySelector('#restore-file');

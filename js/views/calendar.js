@@ -558,72 +558,97 @@ async function renderForm(el, ctx, cal) {
   const incomeChanged = (before, after) => INCOME_FIELDS.some(k => (before[k] ?? 0) !== (after[k] ?? 0));
   const txLabel = tx => `${ft(tx.amount)} (${short(new Date(tx.timestamp))})`;
 
-  form.addEventListener('submit', async e => {
-    e.preventDefault();
-    const appt = collect();
-    if (!appt) return;
-
-    // Módosított találkozó, amelyhez már van bevétel: a bevételt is töröljük (rákérdezés után).
-    let incomeRemoved = false;
-    if (editing && linkedTx && incomeChanged(editing, appt)) {
-      const yes = await confirmDialog({
-        title: 'A bevétel is törlődik',
-        text: `Ehhez a találkozóhoz már mentettél bevételt: ${txLabel(linkedTx)}. A módosítás miatt ez a bevétel törlődik; `
-          + 'utána a „Bevétel mentése” gombbal újra mentheted az új adatokkal.',
-        ok: 'Mentés, bevétel törlése',
-      });
-      if (!yes) return;
-      await db.deleteTx(linkedTx.id);
-      appt.incomeTxId = '';
-      incomeRemoved = true;
+  // Zár: mentés / törlés / bevétel mentése közben minden gomb tiltott, így egy második
+  // koppintás nem ment kétszer (új találkozónál nem jön létre két példány).
+  let busy = false;
+  const lock = on => {
+    busy = on;
+    for (const btn of form.querySelectorAll('button')) btn.disabled = on;
+  };
+  // A művelet a zár alatt fut; ha félbemarad (hiba, Mégse a kérdésnél), a zár feloldódik.
+  const locked = fn => async () => {
+    if (busy) return;
+    lock(true);
+    let finished = false;
+    try {
+      finished = await fn();
+    } catch (err) {
+      console.error(err);
+      showErr('A művelet nem sikerült. Próbáld újra.');
+    } finally {
+      if (!finished) lock(false);
     }
+  };
 
-    $('a-save').disabled = true;
-    await db.saveAppt(appt);
-    toast(incomeRemoved ? `Találkozó módosítva, a ${ft(linkedTx.amount)}-os bevétel törölve`
-      : editing ? 'Találkozó módosítva' : `Találkozó mentve: ${short(parseDay(appt.date))} ${appt.time}`);
-    // Bevétel törlése után a találkozón maradunk, hogy újra menthető legyen.
-    if (incomeRemoved) ctx.go('calendar', { apptId: appt.id });
-    else back(appt.date);
+  form.addEventListener('submit', e => {
+    e.preventDefault();
+    locked(async () => {
+      const appt = collect();
+      if (!appt) return false;
+
+      // Módosított találkozó, amelyhez már van bevétel: a bevételt is töröljük (rákérdezés után).
+      let incomeRemoved = false;
+      if (editing && linkedTx && incomeChanged(editing, appt)) {
+        const yes = await confirmDialog({
+          title: 'A bevétel is törlődik',
+          text: `Ehhez a találkozóhoz már mentettél bevételt: ${txLabel(linkedTx)}. A módosítás miatt ez a bevétel törlődik; `
+            + 'ha kell, a találkozó vége után a „Bevétel mentése” gombbal újra mentheted az új adatokkal.',
+          ok: 'Mentés, bevétel törlése',
+        });
+        if (!yes) return false;
+        await db.deleteTx(linkedTx.id);
+        appt.incomeTxId = '';
+        incomeRemoved = true;
+      }
+
+      await db.saveAppt(appt);
+      toast(incomeRemoved ? `Találkozó módosítva, a ${ft(linkedTx.amount)}-os bevétel törölve`
+        : editing ? 'Találkozó módosítva' : `Találkozó mentve: ${short(parseDay(appt.date))} ${appt.time}`);
+      back(appt.date); // mentés után mindig vissza a naptár listájába
+      return true;
+    })();
   });
 
   el.onclick = async e => {
     const b = e.target.closest('button');
-    if (!b) return;
+    if (!b || busy) return;
     if (b.dataset.clear) {
       // A megerősítő időpont kiürítése (az iPhone választója csak visszaállítani tud).
       $(b.dataset.clear).value = '';
       $('a-err').hidden = true;
     } else if (b.id === 'a-income') {
       // Bevétel a találkozóból: Összes díj, ügyfél neve, kezdési dátum + érkezés eleje, díjtételek.
-      const appt = collect();
-      if (!appt) return;
-      if (!appt.amount) return showErr('Az összes díj 0 Ft – adj meg óradíjat vagy más díjat.', $('a-rate'));
-      const yes = await confirmDialog({
-        title: 'Bevétel mentése?',
-        text: `${ft(appt.amount)} bevétel – ${appt.name}, ${short(parseDay(appt.date))} ${appt.time}. A találkozón végzett módosítások is mentődnek.`,
-        ok: 'Bevétel mentése',
-      });
-      if (!yes) return;
-      const cats = await db.getCategories();
-      const cat = cats.find(c => c.type === 'income' && c.isClientPayment && !c.archived)
-        ?? cats.find(c => c.type === 'income' && !c.archived);
-      if (!cat) return showErr('Nincs bevételi forrás. Vegyél fel egyet a Beállításokban.');
-      const tx = {
-        id: db.uid(),
-        type: 'income',
-        amount: appt.amount,
-        categoryId: cat.id,
-        clientName: appt.name,
-        note: incomeNote(appt),
-        timestamp: new Date(`${appt.date}T${appt.time}`).getTime(),
-        createdAt: Date.now(),
-      };
-      await db.saveTx(tx);
-      await db.addClient(appt.name);
-      await db.saveAppt({ ...appt, incomeTxId: tx.id });
-      toast(`Bevétel mentve: ${ft(tx.amount)}`);
-      ctx.go('calendar', { apptId: appt.id });
+      await locked(async () => {
+        const appt = collect();
+        if (!appt) return false;
+        if (!appt.amount) { showErr('Az összes díj 0 Ft – adj meg óradíjat vagy más díjat.', $('a-rate')); return false; }
+        const yes = await confirmDialog({
+          title: 'Bevétel mentése?',
+          text: `${ft(appt.amount)} bevétel – ${appt.name}, ${short(parseDay(appt.date))} ${appt.time}. A találkozón végzett módosítások is mentődnek.`,
+          ok: 'Bevétel mentése',
+        });
+        if (!yes) return false;
+        const cats = await db.getCategories();
+        const cat = cats.find(c => c.type === 'income' && c.isClientPayment && !c.archived)
+          ?? cats.find(c => c.type === 'income' && !c.archived);
+        if (!cat) { showErr('Nincs bevételi forrás. Vegyél fel egyet a Beállításokban.'); return false; }
+        const tx = {
+          id: db.uid(),
+          type: 'income',
+          amount: appt.amount,
+          categoryId: cat.id,
+          clientName: appt.name,
+          note: incomeNote(appt),
+          timestamp: new Date(`${appt.date}T${appt.time}`).getTime(),
+          createdAt: Date.now(),
+        };
+        await db.saveTx(tx);
+        await db.addClient(appt.name);
+        await db.saveAppt({ ...appt, incomeTxId: tx.id });
+        toast(`Bevétel mentve: ${ft(tx.amount)}`);
+        ctx.go('calendar', { apptId: appt.id }); // a találkozón maradunk: látszik, hogy mentve
+        return true;
+      })();
     } else if (b.id === 'a-income-open') {
       ctx.go('entry', { editId: editing.incomeTxId });
     } else if (b.hasAttribute('data-cancel')) {
@@ -637,18 +662,21 @@ async function renderForm(el, ctx, cal) {
       }
       back(editing?.date);
     } else if (b.id === 'a-del') {
-      const yes = await confirmDialog({
-        title: linkedTx ? 'Törlöd a találkozót és a bevételt?' : 'Törlöd a találkozót?',
-        text: `${editing.name}, ${short(parseDay(editing.date))} ${editing.time}`
-          + (linkedTx ? `. A hozzá mentett ${txLabel(linkedTx)} bevétel is törlődik` : '')
-          + `${db.cloud ? ' – minden belépett telefonról' : ''}. Ez nem vonható vissza.`,
-        ok: linkedTx ? 'Mindkettő törlése' : 'Találkozó törlése',
-      });
-      if (!yes) return;
-      if (linkedTx) await db.deleteTx(linkedTx.id);
-      await db.deleteAppt(editing.id);
-      toast(linkedTx ? `Találkozó és ${ft(linkedTx.amount)}-os bevétel törölve` : 'Találkozó törölve');
-      back(editing.date);
+      await locked(async () => {
+        const yes = await confirmDialog({
+          title: linkedTx ? 'Törlöd a találkozót és a bevételt?' : 'Törlöd a találkozót?',
+          text: `${editing.name}, ${short(parseDay(editing.date))} ${editing.time}`
+            + (linkedTx ? `. A hozzá mentett ${txLabel(linkedTx)} bevétel is törlődik` : '')
+            + `${db.cloud ? ' – minden belépett telefonról' : ''}. Ez nem vonható vissza.`,
+          ok: linkedTx ? 'Mindkettő törlése' : 'Találkozó törlése',
+        });
+        if (!yes) return false;
+        if (linkedTx) await db.deleteTx(linkedTx.id);
+        await db.deleteAppt(editing.id);
+        toast(linkedTx ? `Találkozó és ${ft(linkedTx.amount)}-os bevétel törölve` : 'Találkozó törölve');
+        back(editing.date); // törlés után vissza a naptár listájába
+        return true;
+      })();
     }
   };
 }

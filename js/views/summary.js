@@ -4,7 +4,7 @@ import {
   weekday, dayShort, monthLabel, esc, totals,
 } from '../format.js';
 
-function cards({ inc, exp, bal }) {
+export function cards({ inc, exp, bal }) {
   return `
     <div class="cards">
       <div class="card wide"><span>Egyenleg</span><strong class="${bal < 0 ? 'neg' : ''}">${bal < 0 ? '−' : ''}${ft(Math.abs(bal))}</strong></div>

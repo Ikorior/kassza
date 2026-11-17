@@ -4,10 +4,12 @@ import { renderDay, renderMonth } from './views/summary.js';
 import { renderCharts } from './views/charts.js';
 import { renderSettings } from './views/settings.js';
 import { renderLogin } from './views/login.js';
+import { renderSearch } from './views/search.js';
 
 const TABS = {
   entry: { title: 'Új tétel', render: renderEntry },
   day: { title: 'Napi összesítő', render: renderDay },
+  search: { title: 'Keresés és lista', render: renderSearch },
   month: { title: 'Havi összesítő', render: renderMonth },
   charts: { title: 'Grafikonok', render: renderCharts },
   settings: { title: 'Beállítások', render: renderSettings },
@@ -22,7 +24,7 @@ let navToken = 0;
 
 // Nézetváltás; a patch-ben adható át pl. { day }, { month }, { editId }, { presetDay }.
 async function go(tab, patch = {}) {
-  Object.assign(state, { editId: null, presetDay: null }, patch, { tab });
+  Object.assign(state, { editId: null, presetDay: null, returnTo: null }, patch, { tab });
   for (const b of tabButtons) {
     if (b.dataset.tab === tab) b.setAttribute('aria-current', 'page');
     else b.removeAttribute('aria-current');
@@ -75,6 +77,7 @@ db.onAuth(async user => {
 // Másik telefonról érkezett változás: az összesítő nézetek frissülnek.
 // Az űrlapokat (új tétel, beállítások) nem rajzoljuk újra, hogy a beírt szöveg ne vesszen el.
 db.onChange(() => {
+  // A keresést sem rajzoljuk újra, hogy a beírt keresőszó és a görgetés megmaradjon.
   if (['day', 'month', 'charts'].includes(state.tab) && !document.querySelector('dialog[open]')) {
     go(state.tab, { keepScroll: true });
   }

@@ -76,7 +76,7 @@ main {
 
 .tabs {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   background: var(--surface);
   border-top: 1px solid var(--line);
   padding-bottom: env(safe-area-inset-bottom);
@@ -136,7 +136,7 @@ p { margin: 0 0 8px; }
 
 body.locked .tabs { display: none; }
 
-input[type="text"], input[type="email"], input[type="password"], input[type="date"], input[type="time"], input:not([type]) {
+input[type="text"], input[type="search"], input[type="email"], input[type="password"], input[type="date"], input[type="time"], input:not([type]) {
   width: 100%;
   min-width: 0;
   min-height: 48px;
@@ -184,6 +184,7 @@ form[data-type="expense"] .amount-wrap input { color: var(--neg); }
   border-radius: var(--radius);
   background: var(--track);
 }
+.seg.three { grid-template-columns: repeat(3, 1fr); }
 .seg button {
   min-height: 44px;
   border: 0;
@@ -279,6 +280,28 @@ form[data-type="expense"] .amount-wrap input { color: var(--neg); }
 .tx-main small { display: block; color: var(--muted); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tx-amt { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
 .tx-amt small { display: block; font-weight: 600; font-size: 14px; }
+
+.day-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin: 18px 0 6px;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.day-head button {
+  min-height: 36px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-weight: 700;
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--line);
+  text-underline-offset: 3px;
+}
+.day-head > span { font-weight: 600; text-align: right; }
 
 .brk { padding: 10px 14px; }
 .brk-head { display: flex; justify-content: space-between; gap: 12px; }

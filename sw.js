@@ -1,7 +1,7 @@
 // Offline működés: az app fájljai a készüléken gyorsítótárazva.
 // Új verzió kiadásakor a háttérben frissül, a következő indításkor már az új fut.
 
-const CACHE = 'kassza-v2';
+const CACHE = 'kassza-v3';
 const SDK = 'https://www.gstatic.com/firebasejs/';
 const FILES = [
   './',
@@ -19,6 +19,7 @@ const FILES = [
   'js/views/login.js',
   'js/views/entry.js',
   'js/views/summary.js',
+  'js/views/search.js',
   'js/views/charts.js',
   'js/views/settings.js',
   'icons/icon-180.png',

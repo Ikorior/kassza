@@ -8,6 +8,9 @@ const last = { type: 'income', cat: { income: null, expense: null } };
 export async function renderEntry(el, ctx) {
   let [cats, clients] = await Promise.all([db.getCategories(), db.getClients()]);
   const editing = ctx.state.editId ? await db.getTx(ctx.state.editId) : null;
+  // Szerkesztés után oda térünk vissza, ahonnan jöttünk (keresés vagy napi nézet).
+  const returnTo = ctx.state.returnTo;
+  const back = day => (returnTo === 'search' ? ctx.go('search') : ctx.go('day', { day }));
 
   let type = editing?.type ?? last.type;
   const clientCat = cats.find(c => c.type === 'income' && c.isClientPayment && !c.archived);
@@ -118,7 +121,7 @@ export async function renderEntry(el, ctx) {
     else if (b.dataset.cat) { picked[type] = b.dataset.cat; clearErr(); paint(); }
     else if (b.id === 'addcat') { $('newcat').hidden = false; $('newcat-name').focus(); }
     else if (b.id === 'newcat-add') addCategory();
-    else if (b.id === 'cancel') ctx.go('day', { day: new Date(editing.timestamp) });
+    else if (b.id === 'cancel') back(new Date(editing.timestamp));
     else if (b.id === 'del') {
       const yes = await confirmDialog({
         title: 'Törlöd ezt a tételt?',
@@ -128,7 +131,7 @@ export async function renderEntry(el, ctx) {
       if (!yes) return;
       await db.deleteTx(editing.id);
       toast('Tétel törölve');
-      ctx.go('day', { day: new Date(editing.timestamp) });
+      back(new Date(editing.timestamp));
     }
   });
 
@@ -161,7 +164,7 @@ export async function renderEntry(el, ctx) {
 
     if (editing) {
       toast('Módosítás elmentve');
-      ctx.go('day', { day: ts });
+      back(ts);
     } else {
       toast(`${type === 'income' ? 'Bevétel' : 'Kiadás'} elmentve: ${ft(amount)}`);
       ctx.go('entry');

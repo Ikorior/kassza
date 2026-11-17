@@ -1,0 +1,9 @@
+Havi lapfülnél legyen lehetőség egyedi hónap kezdete és vége választásra amit el
+is ment magának és az oldalon valahol kis betűvel meg is jelenít, hogy tudjam mit mutat.
+
+Legyen reszponzív a megjelenés. Nekem iPhone 17 Pro Max készülékem van és kicsit
+görgetni kell a bevitel oldalt, a feleségemnek iPhone 17 Pro van kisebb kijelzővel,
+neki sok minden nem látszik. Legjobb az lenne, ha lehetne egy csúszkával egyedileg
+méretezni az oldal nagyságát.
+
+

@@ -92,10 +92,34 @@ function breakdown(items, label, neg = false) {
     </li>`).join('')}</ul>`;
 }
 
+// Egyedi hónap: a kezdőnaptól (1–28) a következő hónap kezdőnapja előtti napig tart.
+// A beállítás ezen a készüléken mentődik.
+const monthStartDay = async () => {
+  const v = Number(await db.getMeta('monthStart'));
+  return v >= 1 && v <= 28 ? v : 1;
+};
+const periodOf = (anchor, s) => ({
+  from: new Date(anchor.getFullYear(), anchor.getMonth(), s),
+  to: new Date(anchor.getFullYear(), anchor.getMonth() + 1, s),
+});
+const shortDate = (d, withYear) =>
+  d.toLocaleDateString('hu-HU', { ...(withYear ? { year: 'numeric' } : {}), month: 'short', day: 'numeric' });
+
 export async function renderMonth(el, ctx) {
+  const s = await monthStartDay();
+  // Első megnyitáskor (vagy a kezdőnap módosítása után) a mai napot tartalmazó időszak.
+  if (!ctx.state.monthSet) {
+    const now = new Date();
+    ctx.state.month = addMonths(startOfMonth(now), now.getDate() >= s ? 0 : -1);
+    ctx.state.monthSet = true;
+  }
   const month = startOfMonth(ctx.state.month);
+  const { from, to } = periodOf(month, s);
+  const last = addDays(to, -1);
+  const rangeText = `${shortDate(from, true)} – ${shortDate(last, last.getFullYear() !== from.getFullYear())}`;
+
   const [txs, cats] = await Promise.all([
-    db.txInRange(month.getTime(), addMonths(month, 1).getTime()),
+    db.txInRange(from.getTime(), to.getTime()),
     db.getCategories(),
   ]);
   const cmap = new Map(cats.map(c => [c.id, c]));
@@ -125,8 +149,15 @@ export async function renderMonth(el, ctx) {
   el.innerHTML = `
     <div class="pager">
       <button type="button" data-step="-1" aria-label="Előző hónap">‹</button>
-      <div class="pager-mid"><strong>${monthLabel(month)}</strong></div>
+      <div class="pager-mid"><strong>${monthLabel(month)}</strong><small>${rangeText}</small></div>
       <button type="button" data-step="1" aria-label="Következő hónap">›</button>
+    </div>
+    <div class="period-set">
+      <label for="mstart">Hónap kezdőnapja:</label>
+      <select id="mstart">
+        ${Array.from({ length: 28 }, (_, i) => i + 1).map(d =>
+          `<option value="${d}" ${d === s ? 'selected' : ''}>${d === 1 ? '1. (naptári hónap)' : `${d}.`}</option>`).join('')}
+      </select>
     </div>
     ${cards(totals(txs))}
     ${txs.length ? `
@@ -135,7 +166,7 @@ export async function renderMonth(el, ctx) {
       ${expense.length ? `<h2>Kiadások típusonként</h2>${breakdown(sumBy(expense, t => t.categoryId), i => catName(cmap, i.key), true)}` : ''}
       <h2>Napok</h2>
       <ul class="list">${dayRows}</ul>`
-    : `<div class="empty"><p>Ebben a hónapban még nincs rögzített tétel.</p>
+    : `<div class="empty"><p>Ebben az időszakban még nincs rögzített tétel.</p>
          <button type="button" class="btn primary" id="add">Tétel rögzítése</button></div>`}`;
 
   el.onclick = e => {
@@ -145,5 +176,9 @@ export async function renderMonth(el, ctx) {
     else if (b.dataset.day) ctx.go('day', { day: parseDay(b.dataset.day) });
     else if (b.id === 'add') ctx.go('entry');
   };
-  el.onchange = null;
+  el.onchange = async e => {
+    if (e.target.id !== 'mstart') return;
+    await db.setMeta('monthStart', Number(e.target.value));
+    ctx.go('month', { monthSet: false });
+  };
 }

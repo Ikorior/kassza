@@ -1,6 +1,7 @@
 import * as db from '../db.js';
 import { dayKey, dateTimeLabel, esc } from '../format.js';
 import { toast, confirmDialog } from '../ui.js';
+import * as display from '../display.js';
 
 const isStandalone = () =>
   window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
@@ -55,7 +56,23 @@ export async function renderSettings(el, ctx) {
       </form>
     </section>`;
 
+  const scaleSetting = display.getSetting();
+
   el.innerHTML = `
+    <section>
+      <h2>Megjelenítés mérete</h2>
+      <div class="scale-row">
+        <input type="range" id="scale" min="${display.MIN}" max="${display.MAX}" step="5"
+               value="${display.currentPercent()}" aria-label="Megjelenítés mérete" aria-describedby="scale-hint">
+        <output id="scale-val" for="scale">${display.currentPercent()}%</output>
+      </div>
+      <label class="check">
+        <input type="checkbox" id="scale-auto" ${scaleSetting === 'auto' ? 'checked' : ''}>
+        Automatikus (a képernyőmérethez igazodik)
+      </label>
+      <p class="hint" id="scale-hint">Csak ezen a telefonon érvényes. Ha az Új tétel oldalt görgetni kell, vedd lejjebb; ha túl apró, vedd feljebb.</p>
+    </section>
+
     ${block('income', 'Bevételi források', 'bevételi forrás', 'pl. Borravaló')}
     ${block('expense', 'Költségtípusok', 'költségtípus', 'pl. Parkolás')}
     <p class="hint" style="margin-top:10px">A név átírható. Az elrejtett típus új tételnél nem választható, a korábbi tételek megmaradnak.</p>
@@ -102,6 +119,20 @@ export async function renderSettings(el, ctx) {
     <p class="foot">Kassza · 1.0</p>`;
 
   const again = () => ctx.go('settings', { keepScroll: true });
+
+  const scale = el.querySelector('#scale');
+  const scaleVal = el.querySelector('#scale-val');
+  const scaleAuto = el.querySelector('#scale-auto');
+  scale.addEventListener('input', () => {
+    display.setSetting(Number(scale.value)); // azonnal látszik
+    scaleVal.textContent = scale.value + '%';
+    scaleAuto.checked = false;
+  });
+  scaleAuto.addEventListener('change', () => {
+    display.setSetting(scaleAuto.checked ? 'auto' : display.currentPercent());
+    scale.value = display.currentPercent();
+    scaleVal.textContent = scale.value + '%';
+  });
   const err = el.querySelector('#restore-err');
   const fileInput = el.querySelector('#restore-file');
 

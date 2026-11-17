@@ -1,3 +1,4 @@
+import './display.js';
 import * as db from './db.js';
 import { renderEntry } from './views/entry.js';
 import { renderDay, renderMonth } from './views/summary.js';

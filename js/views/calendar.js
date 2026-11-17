@@ -355,18 +355,18 @@ async function renderForm(el, ctx, cal) {
   }
 
   // Bevétel mentése: csak már mentett és lejárt találkozónál; ha már van hozzá bevétel, azt mutatjuk.
-  const ended = editing ? apptEnd(editing) : 0;
+  // A gomb és a tájékoztatás is benne van; hogy melyik látszik, az űrlap aktuális adataiból
+  // dől el (lásd updateIncome), így a dátum jövőbe írása után a gomb azonnal eltűnik.
   const linkedTx = editing?.incomeTxId ? await db.getTx(editing.incomeTxId) : null;
-  const endText = ended
-    ? `${short(new Date(ended))} ${pad(new Date(ended).getHours())}:${pad(new Date(ended).getMinutes())}` : '';
+  const endLabel = ms => `${short(new Date(ms))} ${pad(new Date(ms).getHours())}:${pad(new Date(ms).getMinutes())}`;
   let incomeBlock = '';
   if (editing && linkedTx) {
     incomeBlock = `
       <button type="button" class="btn income-btn done" id="a-income-open">✓ Bevétel mentve (${ft(linkedTx.amount)}) – megnyitás</button>`;
-  } else if (editing && ended <= Date.now()) {
-    incomeBlock = '<button type="button" class="btn income-btn" id="a-income">Bevétel mentése</button>';
   } else if (editing) {
-    incomeBlock = `<p class="hint">A bevétel a találkozó vége után menthető (${endText}).</p>`;
+    incomeBlock = `
+      <button type="button" class="btn income-btn" id="a-income" hidden>Bevétel mentése</button>
+      <p class="hint" id="a-income-hint" hidden></p>`;
   }
 
   const now = new Date();
@@ -499,6 +499,29 @@ async function renderForm(el, ctx, cal) {
   $('a-to').addEventListener('input', () => { toManual = !!$('a-to').value; });
   // Volt-e módosítás (a Mégse ilyenkor rákérdez).
   let dirty = false;
+
+  // A találkozó vége a jelenleg beírt adatok szerint (null, ha még hiányos).
+  const formEnd = () => {
+    const date = $('a-date').value, time = $('a-time').value.slice(0, 5);
+    if (!date || !time) return null;
+    return apptEnd({ date, time, arriveTo: ($('a-to').value || endTime(time, WINDOW)).slice(0, 5), duration: Number($('a-dur').value) });
+  };
+  // Bevétel mentése gomb: csak ha a beírt adatok szerint a találkozó már véget ért.
+  const updateIncome = () => {
+    if (!$('a-income')) return;
+    const end = formEnd();
+    const ok = end != null && end <= Date.now();
+    $('a-income').hidden = !ok;
+    $('a-income-hint').hidden = ok;
+    $('a-income-hint').textContent = end == null
+      ? 'A bevétel mentéséhez add meg a dátumot és az érkezést.'
+      : `A bevétel a találkozó vége után menthető (${endLabel(end)}).`;
+  };
+  updateIncome();
+  for (const id of ['a-date', 'a-time', 'a-to', 'a-dur']) {
+    $(id).addEventListener('input', updateIncome);
+    $(id).addEventListener('change', updateIncome);
+  }
   form.addEventListener('input', () => { $('a-err').hidden = true; dirty = true; });
   form.addEventListener('change', () => { dirty = true; });
   const showErr = (msg, field) => {
@@ -621,6 +644,13 @@ async function renderForm(el, ctx, cal) {
       await locked(async () => {
         const appt = collect();
         if (!appt) return false;
+        // A beírt (akár épp módosított) adatok szerint is véget kellett érnie a találkozónak.
+        const end = apptEnd(appt);
+        if (end > Date.now()) {
+          updateIncome();
+          showErr(`A bevétel csak a találkozó vége után menthető (${endLabel(end)}). A dátum módosításához használd a Mentés gombot.`);
+          return false;
+        }
         if (!appt.amount) { showErr('Az összes díj 0 Ft – adj meg óradíjat vagy más díjat.', $('a-rate')); return false; }
         const yes = await confirmDialog({
           title: 'Bevétel mentése?',

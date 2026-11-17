@@ -17,7 +17,7 @@ const ORDER = Object.keys(STATUS);
 const dayStatus = list => ORDER.find(s => list.some(a => a.status === s)) ?? 'none';
 
 // Ügyfélidő: csak egész órák.
-const DURATIONS = [60, 120, 180, 240, 300, 360, 420, 480];
+const DURATIONS = Array.from({ length: 12 }, (_, i) => (i + 1) * 60); // 1–12 óra
 // Érkezési idősáv: alapból a kezdés + 1 óra (korábbi, ilyen mező nélküli találkozóknál is).
 const WINDOW = 60;
 const durLabel = m => (m < 60 ? `${m} perc` : `${Math.floor(m / 60)} óra${m % 60 ? ` ${m % 60} perc` : ''}`);
@@ -59,8 +59,23 @@ const LEGEND = `
 const ICON_SEARCH = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>';
 
 // Egy találkozó kártyája (napi nézet és keresési találatok).
+// Díjak: Összes díj = ügyfélidő (óra) × óradíj + kiszállási díj + fehér + extra.
+export const FEES = [['travel', 'Kiszállási díj'], ['white', 'Fehér'], ['extra', 'Extra']];
+const totalFee = (minutes, rate, travel, white, extra) =>
+  Math.round((minutes / 60) * (rate || 0)) + (travel || 0) + (white || 0) + (extra || 0);
+
+// Rövid bontás a kártyára, pl. „2 óra × 10 000 Ft + kiszállás 3 000 Ft”.
+function feeBreakdown(a) {
+  const parts = [];
+  if (a.rate) parts.push(`${durLabel(a.duration)} × ${ft(a.rate)}`);
+  if (a.travel) parts.push(`kiszállás ${ft(a.travel)}`);
+  if (a.white) parts.push(`fehér ${ft(a.white)}`);
+  if (a.extra) parts.push(`extra ${ft(a.extra)}`);
+  return parts.length > 1 || a.rate ? parts.join(' + ') : '';
+}
+
 function card(a) {
-  const sub = [a.address, a.note].filter(Boolean);
+  const sub = [a.address, a.note, feeBreakdown(a)].filter(Boolean);
   return `
     <li><button type="button" class="appt s-${a.status}" data-appt="${a.id}">
       <span class="appt-time">${a.time}<small>–${arriveTo(a)}</small></span>
@@ -330,7 +345,11 @@ async function renderForm(el, ctx, cal) {
   const a = editing ?? {
     name: '', date, time: defaultTime, arriveTo: endTime(defaultTime, WINDOW), duration: 60,
     address: '', note: '', amount: 0, status: 'sure', confirm1: '', confirm2: '',
+    rate: 0, travel: 0, white: 0, extra: 0,
   };
+  // Régi, díjbontás nélkül rögzített találkozó: az összeg marad, amíg nem adnak meg díjat.
+  const legacyAmount = editing && editing.rate == null ? editing.amount || 0 : 0;
+  const money = v => (v ? groupDigits(v) : '');
   const durations = DURATIONS.includes(a.duration) ? DURATIONS : [...DURATIONS, a.duration].sort((x, y) => x - y);
 
   document.getElementById('title').textContent = editing ? 'Találkozó módosítása' : 'Új találkozó';
@@ -355,6 +374,16 @@ async function renderForm(el, ctx, cal) {
         <span>Ügyfélidő</span>
         <select id="a-dur">${durations.map(m => `<option value="${m}" ${m === a.duration ? 'selected' : ''}>${durLabel(m)}</option>`).join('')}</select>
       </label>
+      <div class="fee-row">
+        ${FEES.map(([key, label]) => `
+          <label class="field">
+            <span>${label}</span>
+            <div class="amount-wrap compact">
+              <input id="a-${key}" class="fee" inputmode="numeric" autocomplete="off" placeholder="0" value="${money(a[key])}">
+              <span aria-hidden="true">Ft</span>
+            </div>
+          </label>`).join('')}
+      </div>
       <label class="field">
         <span>Cím</span>
         <input id="a-addr" type="text" maxlength="160" autocomplete="off" value="${esc(a.address)}">
@@ -364,12 +393,20 @@ async function renderForm(el, ctx, cal) {
         <textarea id="a-note" rows="3" maxlength="1000">${esc(a.note)}</textarea>
       </label>
       <label class="field">
-        <span>Összeg</span>
+        <span>Óradíj</span>
         <div class="amount-wrap compact">
-          <input id="a-amount" inputmode="numeric" autocomplete="off" placeholder="0" value="${a.amount ? groupDigits(a.amount) : ''}">
-          <span aria-hidden="true">Ft</span>
+          <input id="a-rate" class="fee" inputmode="numeric" autocomplete="off" placeholder="0" value="${money(a.rate)}">
+          <span aria-hidden="true">Ft / óra</span>
         </div>
       </label>
+      <div class="field">
+        <span id="total-label">Összes díj</span>
+        <div class="amount-wrap compact total" aria-labelledby="total-label">
+          <output id="a-amount" aria-live="polite"></output>
+          <span aria-hidden="true">Ft</span>
+        </div>
+        <small class="hint" id="a-formula"></small>
+      </div>
       <label class="field">
         <span>Megbízhatóság</span>
         <select id="a-status" class="status-select">
@@ -399,7 +436,25 @@ async function renderForm(el, ctx, cal) {
   paintStatus();
   statusSel.addEventListener('change', paintStatus);
 
-  $('a-amount').addEventListener('input', e => { e.target.value = groupDigits(e.target.value); });
+  // Díjmezők: ezres tagolás, és az Összes díj azonnali újraszámolása.
+  const num = id => parseInt($(id).value.replace(/\D/g, ''), 10) || 0;
+  const fees = () => ({ rate: num('a-rate'), travel: num('a-travel'), white: num('a-white'), extra: num('a-extra') });
+  const computeTotal = () => {
+    const f = fees();
+    const minutes = Number($('a-dur').value);
+    const anyFee = f.rate || f.travel || f.white || f.extra;
+    const total = !anyFee && legacyAmount ? legacyAmount : totalFee(minutes, f.rate, f.travel, f.white, f.extra);
+    $('a-amount').textContent = groupDigits(total) || '0';
+    $('a-formula').textContent = anyFee
+      ? `${durLabel(minutes)} × ${ft(f.rate)} + ${ft(f.travel)} + ${ft(f.white)} + ${ft(f.extra)}`
+      : legacyAmount ? 'Korábban rögzített összeg. Ha díjat adsz meg, újraszámolódik.' : 'Ügyfélidő × óradíj + kiszállási díj + fehér + extra';
+    return total;
+  };
+  for (const input of el.querySelectorAll('input.fee')) {
+    input.addEventListener('input', () => { input.value = groupDigits(input.value); computeTotal(); });
+  }
+  $('a-dur').addEventListener('change', computeTotal);
+  computeTotal();
 
   // Érkezés vége: a kezdést követi (+1 óra), amíg kézzel át nem írják.
   let toManual = !!editing?.arriveTo && editing.arriveTo !== endTime(editing.time, WINDOW);
@@ -450,7 +505,8 @@ async function renderForm(el, ctx, cal) {
       duration: Number($('a-dur').value),
       address: $('a-addr').value.trim(),
       note: $('a-note').value.trim(),
-      amount: parseInt($('a-amount').value.replace(/\D/g, ''), 10) || 0,
+      ...fees(),
+      amount: computeTotal(), // Összes díj
       status: statusSel.value,
       createdAt: editing?.createdAt ?? Date.now(),
       updatedAt: Date.now(),

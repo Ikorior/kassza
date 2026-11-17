@@ -399,6 +399,54 @@ dialog h2 { margin: 0 0 0.5rem; font-size: 1.125rem; color: var(--ink); }
 dialog p { color: var(--muted); }
 .dialog-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 0.625rem; margin-top: 1rem; }
 
+/* ---------- Kezdőképernyő ---------- */
+
+#splash {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: env(safe-area-inset-top) 1.5rem env(safe-area-inset-bottom);
+  background:
+    radial-gradient(120% 70% at 50% 42%, rgba(63, 184, 166, 0.30), rgba(15, 107, 95, 0.12) 45%, transparent 70%),
+    linear-gradient(180deg, #0d1513 0%, #0a100f 100%);
+  color: #eef1ef;
+  transition: opacity 0.4s ease-out, visibility 0.4s;
+}
+#splash.out { opacity: 0; visibility: hidden; }
+.splash-inner { display: flex; flex-direction: column; align-items: center; text-align: center; }
+#splash img {
+  /* Kis és nagy kijelzőn, álló és fekvő helyzetben is arányosan elfér. */
+  width: min(62vw, 40vh, 20rem);
+  height: auto;
+  filter: drop-shadow(0 1.5rem 2.5rem rgba(0, 0, 0, 0.45));
+  animation: splash-pop 0.7s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+.splash-name {
+  margin: 0.75rem 0 0;
+  font-size: clamp(2.25rem, 11vw, 3.5rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  animation: splash-rise 0.6s 0.15s ease-out both;
+}
+.splash-tag {
+  margin: 0.625rem 0 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #8fd8cc;
+  animation: splash-rise 0.6s 0.3s ease-out both;
+}
+@keyframes splash-pop { from { opacity: 0; transform: scale(0.82) translateY(0.75rem); } }
+@keyframes splash-rise { from { opacity: 0; transform: translateY(0.5rem); } }
+
+@media (prefers-reduced-motion: reduce) {
+  #splash img, .splash-name, .splash-tag { animation: none; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   #toast { transition: none; transform: translate(-50%, 0); }
 }

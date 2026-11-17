@@ -17,6 +17,27 @@
   <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
+  <!-- Kezdőképernyő: indításkor kb. 2 mp-ig látszik, aztán elhalványul. Közvetlenül a HTML-ben van,
+       hogy már a programfájlok betöltése előtt megjelenjen. -->
+  <div id="splash" aria-hidden="true">
+    <div class="splash-inner">
+      <img src="icons/splash.webp" alt="" width="640" height="640" decoding="async" fetchpriority="high">
+      <p class="splash-name">Kassza</p>
+      <p class="splash-tag">Bevétel · Kiadás · Egyenleg</p>
+    </div>
+  </div>
+  <script>
+    (function () {
+      var s = document.getElementById('splash');
+      var hide = function () {
+        s.classList.add('out');
+        setTimeout(function () { s.remove(); }, 450);
+      };
+      setTimeout(hide, 2000);
+      s.addEventListener('click', hide); // koppintásra azonnal eltűnik
+    })();
+  </script>
+
   <header class="top"><h1 id="title">Kassza</h1></header>
 
   <main id="view" tabindex="-1"></main>

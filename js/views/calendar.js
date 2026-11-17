@@ -16,13 +16,24 @@ export const STATUS = {
 const ORDER = Object.keys(STATUS);
 const dayStatus = list => ORDER.find(s => list.some(a => a.status === s)) ?? 'none';
 
-const DURATIONS = [15, 30, 45, 60, 75, 90, 120, 150, 180, 240, 300, 360, 480];
+// Ügyfélidő: csak egész órák.
+const DURATIONS = [60, 120, 180, 240, 300, 360, 420, 480];
+// Érkezési idősáv: alapból a kezdés + 1 óra (korábbi, ilyen mező nélküli találkozóknál is).
+const WINDOW = 60;
 const durLabel = m => (m < 60 ? `${m} perc` : `${Math.floor(m / 60)} óra${m % 60 ? ` ${m % 60} perc` : ''}`);
 const endTime = (time, dur) => {
   const [h, m] = time.split(':').map(Number);
   const t = h * 60 + m + (dur || 0);
   return `${pad(Math.floor(t / 60) % 24)}:${pad(t % 60)}`;
 };
+
+const arriveTo = a => a.arriveTo || endTime(a.time, WINDOW);
+
+// SMS-megerősítő időpontok („2026-11-17T18:00”) rövid formában, időrendben.
+const confirmList = a => [a.confirm1, a.confirm2].filter(Boolean).sort().map(v => {
+  const d = new Date(v);
+  return `${d.toLocaleDateString('hu-HU', { month: 'short', day: 'numeric' })} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+});
 
 const startOfWeek = d => addDays(new Date(d.getFullYear(), d.getMonth(), d.getDate()), -((d.getDay() + 6) % 7));
 const short = d => d.toLocaleDateString('hu-HU', { month: 'short', day: 'numeric' });
@@ -52,10 +63,11 @@ function card(a) {
   const sub = [a.address, a.note].filter(Boolean);
   return `
     <li><button type="button" class="appt s-${a.status}" data-appt="${a.id}">
-      <span class="appt-time">${a.time}<small>${endTime(a.time, a.duration)}</small></span>
+      <span class="appt-time">${a.time}<small>–${arriveTo(a)}</small></span>
       <span class="appt-main">
         <b>${esc(a.name)}</b>
         <small class="appt-status">${STATUS[a.status].label} · ${durLabel(a.duration)}</small>
+        ${confirmList(a).length ? `<small class="appt-confirm">SMS-megerősítés eddig: ${confirmList(a).join(', ')}</small>` : ''}
         ${sub.map(s => `<small>${esc(s)}</small>`).join('')}
       </span>
       <span class="appt-amt">${a.amount ? ft(a.amount) : ''}</span>
@@ -203,7 +215,8 @@ function renderWeek(body, cal, all, today) {
           </button>
           ${list.length ? `<ul class="wk-list">${list.map(a => `
             <li><button type="button" class="appt-mini s-${a.status}" data-appt="${a.id}">
-              <span class="t">${a.time}</span><span class="n">${esc(a.name)}</span>
+              <span class="t">${a.time}–${arriveTo(a)}</span><span class="n">${esc(a.name)}</span>
+              ${confirmList(a).length ? '<span class="sms" title="SMS-megerősítés kérve">SMS</span>' : ''}
               ${a.amount ? `<span class="a">${ft(a.amount)}</span>` : ''}
             </button></li>`).join('')}</ul>` : ''}
         </section>`;
@@ -314,7 +327,10 @@ async function renderForm(el, ctx, cal) {
   const now = new Date();
   const date = editing?.date ?? ctx.state.apptDate ?? dayKey(now);
   const defaultTime = date === dayKey(now) ? `${pad(Math.min(now.getHours() + 1, 23))}:00` : '09:00';
-  const a = editing ?? { name: '', date, time: defaultTime, duration: 60, address: '', note: '', amount: 0, status: 'sure' };
+  const a = editing ?? {
+    name: '', date, time: defaultTime, arriveTo: endTime(defaultTime, WINDOW), duration: 60,
+    address: '', note: '', amount: 0, status: 'sure', confirm1: '', confirm2: '',
+  };
   const durations = DURATIONS.includes(a.duration) ? DURATIONS : [...DURATIONS, a.duration].sort((x, y) => x - y);
 
   document.getElementById('title').textContent = editing ? 'Találkozó módosítása' : 'Új találkozó';
@@ -325,9 +341,15 @@ async function renderForm(el, ctx, cal) {
         <span>Név</span>
         <input id="a-name" type="text" maxlength="80" autocomplete="off" value="${esc(a.name)}">
       </label>
-      <div class="row2">
-        <label class="field"><span>Dátum</span><input id="a-date" type="date" value="${a.date}"></label>
-        <label class="field"><span>Óra</span><input id="a-time" type="time" value="${a.time}"></label>
+      <label class="field"><span>Dátum</span><input id="a-date" type="date" value="${a.date}"></label>
+      <div class="field">
+        <span id="arr-label">Érkezés</span>
+        <div class="time-range" role="group" aria-labelledby="arr-label" aria-describedby="arr-hint">
+          <input id="a-time" type="time" value="${a.time}" aria-label="Érkezés legkorábban">
+          <span aria-hidden="true">–</span>
+          <input id="a-to" type="time" value="${arriveTo(a)}" aria-label="Érkezés legkésőbb">
+        </div>
+        <small class="hint" id="arr-hint">Elég a kezdést megadni: a vége magától 1 órával későbbre áll, de átírható.</small>
       </div>
       <label class="field">
         <span>Ügyfélidő</span>
@@ -354,6 +376,15 @@ async function renderForm(el, ctx, cal) {
           ${ORDER.map(s => `<option value="${s}" class="s-${s}" ${s === a.status ? 'selected' : ''}>${STATUS[s].label}</option>`).join('')}
         </select>
       </label>
+      <div class="field">
+        <span id="conf-label">SMS-megerősítés</span>
+        <small class="hint">Új vagy megbízhatatlan ügyfélnél: eddig az időpontig kell SMS-ben jeleznie, hogy a találkozó még áll. Nem kötelező.</small>
+        ${[1, 2].map(n => `
+          <div class="confirm-row">
+            <input id="a-c${n}" type="datetime-local" value="${a[`confirm${n}`] ?? ''}" aria-label="${n}. megerősítő időpont">
+            <button type="button" class="btn small ghost" data-clear="a-c${n}" aria-label="${n}. megerősítő időpont törlése">Törlés</button>
+          </div>`).join('')}
+      </div>
 
       <p class="error" id="a-err" role="alert" hidden></p>
       <button class="btn primary" id="a-save">${editing ? 'Módosítás mentése' : 'Találkozó mentése'}</button>
@@ -369,6 +400,13 @@ async function renderForm(el, ctx, cal) {
   statusSel.addEventListener('change', paintStatus);
 
   $('a-amount').addEventListener('input', e => { e.target.value = groupDigits(e.target.value); });
+
+  // Érkezés vége: a kezdést követi (+1 óra), amíg kézzel át nem írják.
+  let toManual = !!editing?.arriveTo && editing.arriveTo !== endTime(editing.time, WINDOW);
+  $('a-time').addEventListener('input', () => {
+    if (!toManual && $('a-time').value) $('a-to').value = endTime($('a-time').value, WINDOW);
+  });
+  $('a-to').addEventListener('input', () => { toManual = !!$('a-to').value; });
   form.addEventListener('input', () => { $('a-err').hidden = true; });
   const showErr = (msg, field) => {
     $('a-err').textContent = msg;
@@ -388,13 +426,27 @@ async function renderForm(el, ctx, cal) {
     const name = $('a-name').value.trim();
     if (!name) return showErr('Add meg a nevet.', $('a-name'));
     if (!$('a-date').value) return showErr('Add meg a dátumot.', $('a-date'));
-    if (!$('a-time').value) return showErr('Add meg az órát.', $('a-time'));
+    if (!$('a-time').value) return showErr('Add meg az érkezés kezdetét.', $('a-time'));
+    const time = $('a-time').value.slice(0, 5);
+    const to = ($('a-to').value || endTime(time, WINDOW)).slice(0, 5);
+    if (to <= time && to !== endTime(time, WINDOW)) {
+      return showErr('Az érkezési idősáv vége legyen későbbi, mint a kezdete.', $('a-to'));
+    }
+    const start = `${$('a-date').value}T${time}`;
+    const confirm1 = $('a-c1').value.slice(0, 16);
+    const confirm2 = $('a-c2').value.slice(0, 16);
+    for (const [c, id] of [[confirm1, 'a-c1'], [confirm2, 'a-c2']]) {
+      if (c && c > start) return showErr('A megerősítő időpont a találkozó előtt legyen.', $(id));
+    }
 
     const appt = {
       id: editing?.id ?? db.uid(),
       name,
       date: $('a-date').value,
-      time: $('a-time').value.slice(0, 5),
+      time,
+      arriveTo: to,
+      confirm1,
+      confirm2,
       duration: Number($('a-dur').value),
       address: $('a-addr').value.trim(),
       note: $('a-note').value.trim(),
@@ -412,7 +464,11 @@ async function renderForm(el, ctx, cal) {
   el.onclick = async e => {
     const b = e.target.closest('button');
     if (!b) return;
-    if (b.id === 'a-cancel') {
+    if (b.dataset.clear) {
+      // A megerősítő időpont kiürítése (az iPhone választója csak visszaállítani tud).
+      $(b.dataset.clear).value = '';
+      $('a-err').hidden = true;
+    } else if (b.id === 'a-cancel') {
       back(editing?.date);
     } else if (b.id === 'a-del') {
       const yes = await confirmDialog({

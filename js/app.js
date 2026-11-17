@@ -1,0 +1,86 @@
+import * as db from './db.js';
+import { renderEntry } from './views/entry.js';
+import { renderDay, renderMonth } from './views/summary.js';
+import { renderCharts } from './views/charts.js';
+import { renderSettings } from './views/settings.js';
+import { renderLogin } from './views/login.js';
+
+const TABS = {
+  entry: { title: 'Új tétel', render: renderEntry },
+  day: { title: 'Napi összesítő', render: renderDay },
+  month: { title: 'Havi összesítő', render: renderMonth },
+  charts: { title: 'Grafikonok', render: renderCharts },
+  settings: { title: 'Beállítások', render: renderSettings },
+};
+
+const view = document.getElementById('view');
+const title = document.getElementById('title');
+const tabButtons = [...document.querySelectorAll('.tabs button')];
+
+const state = { tab: 'entry', day: new Date(), month: new Date(), editId: null, presetDay: null };
+let navToken = 0;
+
+// Nézetváltás; a patch-ben adható át pl. { day }, { month }, { editId }, { presetDay }.
+async function go(tab, patch = {}) {
+  Object.assign(state, { editId: null, presetDay: null }, patch, { tab });
+  for (const b of tabButtons) {
+    if (b.dataset.tab === tab) b.setAttribute('aria-current', 'page');
+    else b.removeAttribute('aria-current');
+  }
+  title.textContent = state.editId ? 'Tétel szerkesztése' : TABS[tab].title;
+  // Minden nézet saját konténerbe rajzol; ha közben újabb váltás indult, a régit eldobjuk.
+  const token = ++navToken;
+  const page = document.createElement('div');
+  await TABS[tab].render(page, ctx);
+  if (token !== navToken) return;
+  view.replaceChildren(page);
+  if (!patch.keepScroll) view.scrollTop = 0;
+}
+
+const ctx = { state, go };
+
+for (const b of tabButtons) b.addEventListener('click', () => go(b.dataset.tab));
+
+function showMessage(text) {
+  navToken++;
+  const box = document.createElement('div');
+  box.className = 'empty';
+  box.append(Object.assign(document.createElement('p'), { textContent: text }));
+  view.replaceChildren(box);
+}
+
+// Belépés figyelése. Helyi módban (felhő nélkül) azonnal „belépett” állapot érkezik.
+db.onAuth(async user => {
+  if (!user) {
+    navToken++;
+    document.body.classList.add('locked');
+    title.textContent = 'Belépés';
+    const page = document.createElement('div');
+    renderLogin(page);
+    view.replaceChildren(page);
+    return;
+  }
+  try {
+    await db.init();
+    document.body.classList.remove('locked');
+    await go('entry');
+  } catch (err) {
+    console.error(err);
+    showMessage(db.cloud
+      ? 'A felhőben tárolt adatokat nem sikerült elérni. Ellenőrizd az internetkapcsolatot, majd nyisd meg újra az appot.'
+      : 'Az adattárolót nem sikerült megnyitni. Privát böngészés módban az app nem tud adatot menteni – nyisd meg normál Safari-ablakban.');
+  }
+});
+
+// Másik telefonról érkezett változás: az összesítő nézetek frissülnek.
+// Az űrlapokat (új tétel, beállítások) nem rajzoljuk újra, hogy a beírt szöveg ne vesszen el.
+db.onChange(() => {
+  if (['day', 'month', 'charts'].includes(state.tab) && !document.querySelector('dialog[open]')) {
+    go(state.tab, { keepScroll: true });
+  }
+});
+
+// Offline működés: csak HTTPS-en (éles), vagy helyi teszthez a ?sw paraméterrel.
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || new URLSearchParams(location.search).has('sw'))) {
+  navigator.serviceWorker.register('sw.js').catch(err => console.warn('Service worker hiba:', err));
+}

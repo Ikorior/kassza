@@ -108,6 +108,27 @@ db.onChange(() => {
   }
 });
 
+// iPhone: ha a billentyűzet miatt a böngésző feltolta az egész oldalt, a billentyűzet bezárása
+// után nem húzza vissza, így a fejléc (és benne pl. a „‹ Listák” gomb) kilóg a képből.
+// A felület maga nem görgethető (csak a középső rész), ezért ilyenkor visszaállítjuk.
+const resetPageShift = () => {
+  if (window.scrollY || document.documentElement.scrollTop || document.body.scrollTop) {
+    window.scrollTo(0, 0);
+    document.body.scrollTop = 0;
+  }
+};
+document.addEventListener('focusout', () => {
+  setTimeout(() => {
+    if (!document.activeElement?.matches?.('input, textarea, select')) resetPageShift();
+  }, 60);
+});
+window.visualViewport?.addEventListener('resize', () => {
+  if (window.visualViewport.height >= window.innerHeight - 2) resetPageShift(); // billentyűzet bezárva
+});
+window.addEventListener('scroll', () => {
+  if (!document.activeElement?.matches?.('input, textarea, select')) resetPageShift();
+});
+
 // Offline működés: csak HTTPS-en (éles), vagy helyi teszthez a ?sw paraméterrel.
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || new URLSearchParams(location.search).has('sw'))) {
   const hadController = !!navigator.serviceWorker.controller;

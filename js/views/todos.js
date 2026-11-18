@@ -73,10 +73,9 @@ async function renderOverview(el, ctx) {
             <span class="tx-main">
               <b>${esc(todoName(l))}</b>
               <small>${parts.join(' · ')}</small>
-              <span class="bar"><i style="width:${pct.toFixed(1)}%"></i></span>
             </span>
-            <span></span>
             <span class="tx-amt"><small>${shortWhen(l.updatedAt)}</small></span>
+            <span class="bar" aria-hidden="true"><i style="width:${pct.toFixed(1)}%"></i></span>
           </button></li>`;
       }).join('')}</ul>`
     : `<div class="empty"><p>Még nincs teendőlistád. Hozz létre egyet a fenti gombbal.</p></div>`}`;
@@ -102,8 +101,10 @@ function renderList(el, ctx, list) {
   ctx.state.focusNew = false;
 
   el.innerHTML = `
-    <div class="todo-head">
-      <button type="button" class="btn small ghost" id="back">‹ Listák</button>
+    <!-- Felül rögzített sáv: a Listák gomb görgetéskor és nyitott billentyűzetnél is elérhető. -->
+    <div class="todo-bar">
+      <button type="button" class="btn small" id="back">‹ Listák</button>
+      <span id="items-title"></span>
     </div>
     <label class="field">
       <span>Lista neve</span>
@@ -111,15 +112,15 @@ function renderList(el, ctx, list) {
     </label>
     <p class="hint" style="margin-top:0.375rem">Ha üresen hagyod, az első sor elejéből kap nevet.</p>
 
-    <h2 id="items-title"></h2>
-    <ul class="list todo-items" id="items"></ul>
-
-    <form class="inline-add" id="add" novalidate>
+    <!-- Az új teendő mezője a lista fölött van, hogy a billentyűzet ne tolja fel az oldalt. -->
+    <form class="inline-add" id="add" novalidate style="margin-top:1rem">
       <label class="sr-only" for="newitem">Új teendő</label>
       <input id="newitem" type="text" maxlength="200" autocomplete="off" enterkeyhint="done" placeholder="Új teendő">
       <button class="btn">Hozzáadás</button>
     </form>
     <p class="hint" style="margin-top:0.5rem">A körre koppintva kész / nyitott. A ⋯ gombbal: mégsem kell, nem megoldható, szerkesztés, törlés.</p>
+
+    <ul class="list todo-items" id="items" style="margin-top:0.75rem"></ul>
 
     <button type="button" class="btn danger-ghost block" id="dellist" style="margin-top:1.5rem">Lista törlése</button>
 
@@ -152,7 +153,7 @@ function renderList(el, ctx, list) {
   function paint() {
     const p = progress(list);
     nameInput.placeholder = todoName({ ...list, name: '' });
-    $('items-title').textContent = list.items.length ? `Teendők · ${p.done}/${p.relevant} kész` : 'Teendők';
+    $('items-title').textContent = list.items.length ? `${p.done}/${p.relevant} kész` : '';
     $('items').innerHTML = list.items.length
       ? list.items.map(i => `
         <li class="todo s-${i.state}">
@@ -161,7 +162,7 @@ function renderList(el, ctx, list) {
           <span class="todo-text">${esc(i.text)}</span>
           <button type="button" class="todo-more" data-more="${i.id}" aria-label="${esc(i.text)}: további lehetőségek">⋯</button>
         </li>`).join('')
-      : `<li class="todo-empty">Még nincs teendő a listán. Írd be az elsőt lent.</li>`;
+      : `<li class="todo-empty">Még nincs teendő a listán. Írd be az elsőt fent.</li>`;
   }
   paint();
   if (focusNew) setTimeout(() => nameInput.focus(), 0); // a nézet beillesztése után

@@ -16,6 +16,7 @@ export const onChange = () => {};
 export const syncPending = () => false;
 export const lastSyncAt = () => 0;
 export const pingServer = async () => true;
+export const resync = async () => true;
 
 let opening;
 function open() {

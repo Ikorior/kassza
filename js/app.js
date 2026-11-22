@@ -9,9 +9,9 @@ import { renderLogin } from './views/login.js';
 import { renderSearch } from './views/search.js';
 import { renderTodos } from './views/todos.js';
 import { renderCalendar } from './views/calendar.js';
-import { renderHome } from './views/home.js';
+import { renderHome, refreshLive, clearCaches } from './views/home.js';
 import { monthStartDay, periodOf, anchorFor } from './period.js';
-import { pad } from './format.js';
+import { pad, dayKey } from './format.js';
 
 const TABS = {
   home: { title: 'Főoldal', render: renderHome },
@@ -86,7 +86,36 @@ async function updateHeader() {
     topSync.textContent = t ? `Utolsó szinkron: ${pad(new Date(t).getHours())}:${pad(new Date(t).getMinutes())}` : 'Szinkronizálás…';
   }
 }
-setInterval(updateHeader, 30000);
+// Gépel vagy szerkeszt-e épp valamit (ilyenkor a képernyőt nem rajzoljuk újra).
+const isBusy = () => !!document.activeElement?.matches?.('#view input, #view textarea, #view select')
+  || !!document.querySelector('#appt-form, dialog[open]')
+  || ['entry', 'settings'].includes(state.tab);
+
+// Napváltás: indításkor, előtérbe kerüléskor és 30 mp-enként ellenőrizzük. Új napon a
+// Főoldal (mai névnap, „Ma” egyenleg, mai találkozók) és a fejléc is újrarajzolódik.
+let shownDay = dayKey(new Date());
+function checkNewDay() {
+  const today = dayKey(new Date());
+  if (today === shownDay) return false;
+  shownDay = today;
+  updateHeader();
+  if (state.tab === 'home' && !isBusy()) go('home', { keepScroll: true, weather: state.weather });
+  return true;
+}
+
+// Időjárás: 30 mp-enként frissül, ha az app látszik (háttérben nem kérdez le semmit).
+setInterval(() => {
+  updateHeader();
+  if (document.hidden) return;
+  if (!checkNewDay()) refreshLive(true);
+}, 30000);
+
+// Háttérből előtérbe kerülve: napváltás-ellenőrzés és friss időjárás.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible') return;
+  updateHeader();
+  if (!checkNewDay()) refreshLive(true);
+});
 addEventListener('online', updateHeader);
 addEventListener('offline', updateHeader);
 
@@ -95,14 +124,20 @@ const refreshBtn = document.getElementById('refresh');
 refreshBtn.addEventListener('click', async () => {
   if (refreshBtn.classList.contains('spinning')) return;
   refreshBtn.classList.add('spinning');
-  const ok = await db.pingServer();
+  // Minden, ami frissíthető: tárolt időjárás és névnap eldobása, a felhő újraszinkronja,
+  // app-frissítés keresése, majd a fejléc és a képernyő újrarajzolása.
+  clearCaches();
+  const ok = await db.resync();
   navigator.serviceWorker?.getRegistration?.().then(r => r?.update()).catch(() => {});
-  refreshBtn.classList.remove('spinning');
+  shownDay = dayKey(new Date());
   updateHeader();
-  const typing = document.activeElement?.matches?.('#view input, #view textarea');
-  const editing = document.querySelector('#appt-form, form .amount-wrap input#amount') && state.tab !== 'home';
-  if (!typing && !editing) go(state.tab, { keepScroll: true, todoId: state.todoId, apptId: state.apptId, weather: state.weather });
-  toast(ok ? 'Az adatok frissek' : 'Nincs kapcsolat a felhővel – a telefonon tárolt adatok látszanak');
+  if (!isBusy()) {
+    await go(state.tab, { keepScroll: true, todoId: state.todoId, apptId: state.apptId, weather: state.weather });
+  } else {
+    await refreshLive(true); // szerkesztés közben legalább az időjárás frissüljön, ha látszik
+  }
+  refreshBtn.classList.remove('spinning');
+  toast(ok ? 'Minden adat frissítve' : 'Nincs kapcsolat a felhővel – a telefonon tárolt adatok látszanak');
 });
 
 /* ----- Lebegő + gomb: új tétel (a listanézetekben) ----- */

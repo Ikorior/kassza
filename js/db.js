@@ -9,7 +9,7 @@ const backend = await (firebaseConfig?.apiKey ? import('./store-cloud.js') : imp
 
 export const {
   cloud,
-  onAuth, signIn, signOut, userEmail, onChange, syncPending, lastSyncAt, pingServer,
+  onAuth, signIn, signOut, userEmail, onChange, syncPending, lastSyncAt, pingServer, resync,
   init,
   getCategories, saveCategory, addCategory,
   txInRange, getTx, saveTx, deleteTx, txCount,

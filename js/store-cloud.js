@@ -9,7 +9,7 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
 import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
-  collection, doc, setDoc, deleteDoc, getDoc, getDocFromCache, getDocFromServer, getDocs, onSnapshot, query, where,
+  collection, doc, setDoc, deleteDoc, getDoc, getDocFromCache, getDocFromServer, getDocs, disableNetwork, enableNetwork, onSnapshot, query, where,
   writeBatch, getCountFromServer,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 
@@ -58,6 +58,15 @@ export const syncPending = () => pending;
 let lastSync = 0;
 const markSync = snap => { if (!snap.metadata.fromCache) lastSync = Date.now(); };
 export const lastSyncAt = () => lastSync;
+
+// Teljes újraszinkron (Frissítés gomb): a kapcsolat bontása és újraépítése, amitől minden
+// figyelt adat (tételek, találkozók, teendők, beállítások) frissen jön le a szerverről.
+// A még fel nem töltött módosítások közben megmaradnak, és utána feltöltődnek.
+export async function resync() {
+  try { await disableNetwork(fs); } catch { /* már nem volt kapcsolat */ }
+  try { await enableNetwork(fs); } catch { /* újrapróbálkozik magától */ }
+  return pingServer();
+}
 
 // Kapcsolat ellenőrzése (Frissítés gomb): egy kis dokumentum lekérése közvetlenül a szerverről.
 export async function pingServer() {

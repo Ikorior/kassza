@@ -29,10 +29,12 @@ const wmo = code => WMO[code] ?? ['🌡️', 'Időjárás'];
 const withTimeout = (promise, ms = 8000) =>
   Promise.race([promise, new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms))]);
 
+// Az időjárás 30 mp-enként frissül (lásd refreshLive); a 25 mp-es tárolás csak a
+// gyors nézetváltásoknál spórol a lekérésen. force: a tárolt értéket figyelmen kívül hagyja.
 let wxCache = { key: '', at: 0, data: null };
-async function forecast(city) {
+async function forecast(city, force = false) {
   const key = `${city.lat},${city.lon}`;
-  if (wxCache.key === key && Date.now() - wxCache.at < 10 * 60 * 1000) return wxCache.data;
+  if (!force && wxCache.key === key && Date.now() - wxCache.at < 25 * 1000) return wxCache.data;
   const url = 'https://api.open-meteo.com/v1/forecast'
     + `?latitude=${city.lat}&longitude=${city.lon}`
     + '&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m'
@@ -54,9 +56,15 @@ async function searchCities(name) {
 
 /* ---------- Névnap (nameday.abalin.net, kulcs nélkül) ---------- */
 
+// A névnap naponta egyszer töltődik le (a dátumhoz kötve tároljuk), így új napon magától
+// az új névnap jön. force: újra lekéri (Frissítés gomb).
 const ndCache = new Map();
-async function namedays(date) {
+async function namedays(date, force = false) {
   const key = dayKey(date);
+  if (force) {
+    ndCache.delete(key);
+    try { localStorage.removeItem('kassza-nameday-' + key); } catch { /* nem fontos */ }
+  }
   if (ndCache.has(key)) return ndCache.get(key);
   try {
     const stored = JSON.parse(localStorage.getItem('kassza-nameday-' + key));
@@ -193,15 +201,34 @@ export async function renderHome(el, ctx) {
   };
 
   // Hálózati adatok a megjelenítés után töltődnek be, hogy a Főoldal azonnal látsszon.
+  live = { kind: 'card', el, city };
   fillWeather(el, city);
   fillNamedays(el);
 }
 
-async function fillWeather(el, city) {
+/* ---------- Élő frissítés (az app.js hívja: 30 mp-enként, előtérbe kerüléskor, Frissítés gombra) ---------- */
+
+let live = null; // a látható időjárás: { kind: 'card' | 'detail', el, city }
+
+export async function refreshLive(force = true) {
+  if (!live || !live.city || !live.el.isConnected) return;
+  if (live.kind === 'card') await fillWeather(live.el, live.city, force);
+  else await fillDetail(live.el, live.city, force);
+}
+
+// A Frissítés gombhoz: minden tárolt külső adat (időjárás, mai névnap) eldobása.
+export function clearCaches() {
+  wxCache = { key: '', at: 0, data: null };
+  ndCache.clear();
+  try { localStorage.removeItem('kassza-nameday-' + dayKey(new Date())); } catch { /* nem fontos */ }
+}
+
+async function fillWeather(el, city, force = false) {
   if (!city) return;
   const $ = id => el.querySelector('#' + id);
   try {
-    const data = await forecast(city);
+    const data = await forecast(city, force);
+    if (!el.isConnected) return;
     const [icon, text] = wmo(data.current.weather_code);
     const d = data.daily;
     $('wx-icon').textContent = icon;
@@ -209,7 +236,10 @@ async function fillWeather(el, city) {
     $('wx-sub').textContent = `Ma: ${Math.round(d.temperature_2m_min[0])}° / ${Math.round(d.temperature_2m_max[0])}°`
       + (d.precipitation_probability_max?.[0] != null ? ` · csapadék ${d.precipitation_probability_max[0]}%` : '');
     $('wx-temp').innerHTML = `${Math.round(data.current.temperature_2m)}°<small>hőérzet ${Math.round(data.current.apparent_temperature)}°</small>`;
+    el.dataset.wxOk = '1';
   } catch {
+    // Automatikus frissítésnél egy átmeneti hiba ne írja felül a már látható adatot.
+    if (el.dataset.wxOk || !el.isConnected) return;
     $('wx-icon').textContent = '🌥️';
     $('wx-main').textContent = 'Az időjárás most nem érhető el';
     $('wx-sub').textContent = 'Nincs internet, vagy a szolgáltatás nem válaszol.';
@@ -293,12 +323,19 @@ async function renderWeather(el, ctx) {
     }
   };
 
+  live = { kind: 'detail', el, city };
+  await fillDetail(el, city);
+}
+
+async function fillDetail(el, city, force = false) {
   if (!city) return;
+  const box = el.querySelector('#wx-detail');
   try {
-    const data = await forecast(city);
+    const data = await forecast(city, force);
+    if (!el.isConnected) return;
     const [icon, text] = wmo(data.current.weather_code);
     const d = data.daily;
-    $('wx-detail').innerHTML = `
+    box.innerHTML = `
       <div class="hero weather" style="margin-top:1rem">
         <span class="hero-icon">${icon}</span>
         <span class="hero-main">
@@ -322,8 +359,10 @@ async function renderWeather(el, ctx) {
             <span class="wx-t">${Math.round(d.temperature_2m_max[i])}° <span>/ ${Math.round(d.temperature_2m_min[i])}°</span></span>
           </li>`;
       }).join('')}</ul>
-      <p class="hint" style="margin-top:0.75rem">Forrás: Open-Meteo</p>`;
+      <p class="hint" style="margin-top:0.75rem">Forrás: Open-Meteo · frissítve ${hm(Date.now())}</p>`;
+    el.dataset.wxOk = '1';
   } catch {
-    $('wx-detail').innerHTML = '<div class="empty"><p>Az időjárás most nem érhető el.</p><span class="hint">Nincs internet, vagy a szolgáltatás nem válaszol.</span></div>';
+    if (el.dataset.wxOk || !el.isConnected) return;
+    box.innerHTML = '<div class="empty"><p>Az időjárás most nem érhető el.</p><span class="hint">Nincs internet, vagy a szolgáltatás nem válaszol.</span></div>';
   }
 }

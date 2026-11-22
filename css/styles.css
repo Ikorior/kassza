@@ -993,3 +993,10 @@ body.has-fab main { padding-bottom: 6rem; }
 .top h1 { line-height: 1.2; }
 .top-month { line-height: 1.25; }
 .top-sync { line-height: 1.2; font-size: 0.625rem; }
+
+/* iPhone: a kezdőképernyős app állapotsora alatti sávot a rendszer elhomályosítja.
+   Az app az állapotsor alatt kezdődik (status-bar-style: black), így ott nincs tartalom.
+   Ha a rendszer mégis az állapotsor alá húzná a tartalmat (safe-area-inset-top > 0),
+   a fejléc annyival lejjebb kerül, hogy a homályos sávon kívül essen. */
+.top { padding-top: calc(env(safe-area-inset-top) * 1.5 + 0.375rem); }
+#toast { top: calc(env(safe-area-inset-top) * 1.5 + 0.625rem); }

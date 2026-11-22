@@ -54,6 +54,33 @@ async function searchCities(name) {
   }));
 }
 
+// Koordinátából településnév (BigDataCloud, kulcs nélküli kliensoldali szolgáltatás;
+// csak a koordinátát kapja meg). A „Saját helyzetem” gombhoz.
+const GPS_NAME = 'Saját helyzet';
+async function placeName(lat, lon) {
+  const url = 'https://api.bigdatacloud.net/data/reverse-geocode-client'
+    + `?latitude=${lat}&longitude=${lon}&localityLanguage=hu`;
+  const d = await (await withTimeout(fetch(url))).json();
+  return {
+    name: d.locality || d.city || d.principalSubdivision || GPS_NAME,
+    admin: [d.principalSubdivision, d.countryName].filter(Boolean).join(', '),
+  };
+}
+
+// A korábban név nélkül („Saját helyzet”) mentett helyet a településnévvel menti újra.
+async function resolveCity(city) {
+  if (!city || city.name !== GPS_NAME) return city;
+  try {
+    const place = await placeName(city.lat, city.lon);
+    if (place.name === GPS_NAME) return city;
+    const named = { ...city, ...place };
+    await db.setMeta('weatherCity', named);
+    return named;
+  } catch {
+    return city;
+  }
+}
+
 /* ---------- Névnap (nameday.abalin.net, kulcs nélkül) ---------- */
 
 // A névnap naponta egyszer töltődik le (a dátumhoz kötve tároljuk), így új napon magától
@@ -202,6 +229,13 @@ export async function renderHome(el, ctx) {
 
   // Hálózati adatok a megjelenítés után töltődnek be, hogy a Főoldal azonnal látsszon.
   live = { kind: 'card', el, city };
+  if (city?.name === GPS_NAME) {
+    resolveCity(city).then(named => {
+      if (named.name === GPS_NAME || live?.el !== el) return;
+      live = { kind: 'card', el, city: named };
+      el.querySelector('#wx-card .eyebrow').textContent = '📍 ' + named.name;
+    });
+  }
   fillWeather(el, city);
   fillNamedays(el);
 }
@@ -228,7 +262,7 @@ async function fillWeather(el, city, force = false) {
   const $ = id => el.querySelector('#' + id);
   try {
     const data = await forecast(city, force);
-    if (!el.isConnected) return;
+    if (live?.el !== el) return; // közben másik nézetre váltottak
     const [icon, text] = wmo(data.current.weather_code);
     const d = data.daily;
     $('wx-icon').textContent = icon;
@@ -239,7 +273,7 @@ async function fillWeather(el, city, force = false) {
     el.dataset.wxOk = '1';
   } catch {
     // Automatikus frissítésnél egy átmeneti hiba ne írja felül a már látható adatot.
-    if (el.dataset.wxOk || !el.isConnected) return;
+    if (el.dataset.wxOk || live?.el !== el) return;
     $('wx-icon').textContent = '🌥️';
     $('wx-main').textContent = 'Az időjárás most nem érhető el';
     $('wx-sub').textContent = 'Nincs internet, vagy a szolgáltatás nem válaszol.';
@@ -267,7 +301,7 @@ async function fillNamedays(el) {
 /* ---------- Időjárás részletesen + település választása ---------- */
 
 async function renderWeather(el, ctx) {
-  const city = await db.getMeta('weatherCity');
+  const city = await resolveCity(await db.getMeta('weatherCity'));
   el.innerHTML = `
     <div class="todo-bar">
       <button type="button" class="btn small" id="wx-back">‹ Főoldal</button>
@@ -317,7 +351,12 @@ async function renderWeather(el, ctx) {
       $('wx-err').hidden = true;
       if (!navigator.geolocation) return;
       navigator.geolocation.getCurrentPosition(
-        pos => choose({ name: 'Saját helyzet', admin: '', lat: +pos.coords.latitude.toFixed(3), lon: +pos.coords.longitude.toFixed(3) }),
+        async pos => {
+          const lat = +pos.coords.latitude.toFixed(3), lon = +pos.coords.longitude.toFixed(3);
+          let place = { name: GPS_NAME, admin: '' };
+          try { place = await placeName(lat, lon); } catch { /* név nélkül is működik */ }
+          choose({ ...place, lat, lon });
+        },
         () => { $('wx-err').textContent = 'A helyzet nem érhető el (engedély megtagadva vagy nincs jel).'; $('wx-err').hidden = false; },
         { timeout: 10000, maximumAge: 600000 });
     }
@@ -332,7 +371,7 @@ async function fillDetail(el, city, force = false) {
   const box = el.querySelector('#wx-detail');
   try {
     const data = await forecast(city, force);
-    if (!el.isConnected) return;
+    if (live?.el !== el) return; // közben másik nézetre váltottak
     const [icon, text] = wmo(data.current.weather_code);
     const d = data.daily;
     box.innerHTML = `
@@ -362,7 +401,7 @@ async function fillDetail(el, city, force = false) {
       <p class="hint" style="margin-top:0.75rem">Forrás: Open-Meteo · frissítve ${hm(Date.now())}</p>`;
     el.dataset.wxOk = '1';
   } catch {
-    if (el.dataset.wxOk || !el.isConnected) return;
+    if (el.dataset.wxOk || live?.el !== el) return;
     box.innerHTML = '<div class="empty"><p>Az időjárás most nem érhető el.</p><span class="hint">Nincs internet, vagy a szolgáltatás nem válaszol.</span></div>';
   }
 }

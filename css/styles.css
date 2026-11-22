@@ -690,6 +690,14 @@ dialog {
 dialog::backdrop { background: rgba(0, 0, 0, 0.45); }
 dialog h2 { margin: 0 0 0.5rem; font-size: 1.125rem; color: var(--ink); }
 dialog p { color: var(--muted); }
+.info-list { list-style: none; margin: 0.75rem 0 1rem; padding: 0; display: grid; gap: 0.5rem; }
+.info-list li {
+  padding: 0.625rem 0.875rem; border-radius: 0.75rem; background: var(--surface2);
+  border: 1px solid var(--line); color: var(--ink); font-weight: 600;
+}
+.info-list li::before { content: '🎉'; margin-right: 0.5rem; }
+#info { width: min(22rem, calc(100vw - 2rem)); }
+#info .btn { width: 100%; }
 .dialog-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 0.625rem; margin-top: 1rem; }
 
 /* ---------- Kezdőképernyő ---------- */

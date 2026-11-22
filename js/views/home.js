@@ -5,6 +5,7 @@ import * as db from '../db.js';
 import { ft, signed, dayKey, pad, startOfDay, addDays, esc, totals } from '../format.js';
 import { monthStartDay, periodOf, anchorFor, rangeText } from '../period.js';
 import { donut } from './charts.js';
+import { infoDialog } from '../ui.js';
 
 const PERIODS = [['day', 'Napi'], ['week', 'Heti'], ['month', 'Havi'], ['all', 'Összes']];
 const norm = s => String(s ?? '').toLocaleLowerCase('hu').normalize('NFD').replace(/[̀-ͯ]/g, '');
@@ -254,6 +255,7 @@ export async function refreshLive(force = true) {
 export function clearCaches() {
   wxCache = { key: '', at: 0, data: null };
   ndCache.clear();
+  ndAlerted = ''; // a Frissítés gomb után újra jelezzük a névnapos ügyfeleket
   try { localStorage.removeItem('kassza-nameday-' + dayKey(new Date())); } catch { /* nem fontos */ }
 }
 
@@ -280,6 +282,27 @@ async function fillWeather(el, city, force = false) {
   }
 }
 
+// Felugró ablak a névnapos ügyfelekkel: app indításkor, napváltáskor és a Frissítés gombra,
+// de egy napon belül a sima újrarajzolások (szinkron, fülváltás) nem nyitják meg újra.
+let ndAlerted = '';
+async function alertNamedays(matches) {
+  const today = dayKey(new Date());
+  if (ndAlerted === today) return;
+  ndAlerted = today;
+  // Indításkor megvárjuk, hogy a kezdőkép eltűnjön.
+  for (let i = 0; i < 30 && document.getElementById('splash'); i++) await new Promise(r => setTimeout(r, 100));
+  // Közben elnavigáltak a Főoldalról: majd a következő megjelenítéskor jelezzük.
+  // (Ha csak újrarajzolódott a Főoldal, a névnapkártya újra ott van, ilyenkor mehet.)
+  if (!document.getElementById('nd-clients')) { ndAlerted = ''; return; }
+  infoDialog({
+    title: matches.length > 1 ? 'Ma névnapjuk van' : 'Ma névnapja van',
+    text: matches.length > 1
+      ? `${matches.length} ügyfeled ünnepel ma:`
+      : 'Az egyik ügyfeled ünnepel ma:',
+    items: matches,
+  });
+}
+
 async function fillNamedays(el) {
   const names = el.querySelector('#nd-names');
   const clientsEl = el.querySelector('#nd-clients');
@@ -292,6 +315,7 @@ async function fillNamedays(el) {
     clientsEl.textContent = matches.length
       ? `Ma névnapja van: ${matches.join(', ')}`
       : 'Ma nincs egyező nevű mentett ügyfél';
+    if (matches.length) alertNamedays(matches);
   } catch {
     names.textContent = 'A névnap most nem érhető el';
     clientsEl.textContent = 'Nincs internet, vagy a szolgáltatás nem válaszol.';

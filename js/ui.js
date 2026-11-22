@@ -8,6 +8,17 @@ export function toast(message) {
   toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
 }
 
+// Tájékoztató ablak listával (pl. névnapos ügyfelek); a Bezárás gombbal zárul.
+export function infoDialog({ title, text, items }) {
+  const d = document.getElementById('info');
+  if (!d || d.open || document.getElementById('confirm')?.open) return;
+  d.querySelector('#info-title').textContent = title;
+  d.querySelector('#info-text').textContent = text;
+  const list = d.querySelector('#info-list');
+  list.replaceChildren(...items.map(t => Object.assign(document.createElement('li'), { textContent: t })));
+  d.showModal();
+}
+
 // Megerősítő párbeszédablak; true, ha a felhasználó a műveletet választotta.
 export function confirmDialog({ title, text, ok }) {
   const d = document.getElementById('confirm');

@@ -1,6 +1,6 @@
 import * as db from '../db.js';
 import { ft, addDays, addMonths, dayKey, monthLabel, monthShort, esc } from '../format.js';
-import { monthStartDay, periodOf, anchorFor, currentAnchor, rangeText } from '../period.js';
+import { monthStartDay, periodOf, anchorFor, currentAnchor, rangeText, startDayText } from '../period.js';
 
 const COLORS = ['#0f766e', '#d97706', '#4f46e5', '#be185d', '#65a30d', '#0891b2', '#7c3aed', '#78716c'];
 const KEY = `<p class="key"><span><i class="k-pos"></i>Bevétel</span><span><i class="k-neg"></i>Kiadás</span></p>`;
@@ -141,7 +141,7 @@ export async function renderCharts(el, ctx) {
     <div class="chart">${donut(txs.filter(t => t.type === 'income'), cmap, 'Ebben az időszakban nincs bevétel.', 'Bevételek megoszlása forrásonként')}</div>
     <h2>Utolsó hat hónap</h2>
     <div class="chart">${trendChart(all, month, s)}</div>
-    ${s !== 1 ? `<p class="hint" style="margin-top:12px">Egy hónap a ${s}. naptól a következő hónap ${s - 1}. napjáig tart (Havi lap → Hónap kezdőnapja).</p>` : ''}`;
+    <p class="hint" style="margin-top:12px">Pénzügyi hónap: ${startDayText(s)} (Beállítások → Pénzügyi hónap).</p>`;
 
   el.onclick = e => {
     const b = e.target.closest('button[data-step]');

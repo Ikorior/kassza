@@ -15,6 +15,7 @@ export const {
   txInRange, getTx, saveTx, deleteTx, txCount,
   getClients, addClient,
   getMeta, setMeta,
+  getShared, setShared,
   getTodos, getTodo, saveTodo, deleteTodo,
   getAppts, getAppt, saveAppt, deleteAppt,
   exportAll, importAll,

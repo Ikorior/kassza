@@ -108,6 +108,10 @@ export const addClient = async name => done((await os('clients', 'readwrite')).p
 export const getMeta = async key => (await done((await os('meta')).get(key)))?.value;
 export const setMeta = async (key, value) => done((await os('meta', 'readwrite')).put({ key, value }));
 
+// Közös beállítások: helyi módban csak egy készülék van, így ugyanott tároljuk.
+export const getShared = key => getMeta('shared:' + key);
+export const setShared = (key, value) => setMeta('shared:' + key, value);
+
 /* ----- Mentés / visszatöltés ----- */
 
 /* ----- Teendőlisták ----- */

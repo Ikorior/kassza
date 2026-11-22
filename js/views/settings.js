@@ -2,6 +2,9 @@ import * as db from '../db.js';
 import { dayKey, dateTimeLabel, esc } from '../format.js';
 import { toast, confirmDialog } from '../ui.js';
 import * as display from '../display.js';
+import { monthStartDay, setMonthStartDay, startDayText } from '../period.js';
+
+const capFirst = t => t.charAt(0).toLocaleUpperCase('hu') + t.slice(1);
 
 const isStandalone = () =>
   window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
@@ -57,6 +60,7 @@ export async function renderSettings(el, ctx) {
     </section>`;
 
   const scaleSetting = display.getSetting();
+  const monthStart = await monthStartDay();
   // A verziószám az offline tároló nevéből jön (sw.js → CACHE), így nem kell külön karbantartani.
   let version = null;
   try {
@@ -64,6 +68,18 @@ export async function renderSettings(el, ctx) {
   } catch { /* nincs offline tároló */ }
 
   el.innerHTML = `
+    <section>
+      <h2>Pénzügyi hónap</h2>
+      <label class="field">
+        <span>A hónap kezdőnapja</span>
+        <select id="month-start">
+          ${Array.from({ length: 28 }, (_, i) => i + 1).map(d =>
+            `<option value="${d}" ${d === monthStart ? 'selected' : ''}>${d === 1 ? '1. (naptári hónap)' : `${d}.`}</option>`).join('')}
+        </select>
+      </label>
+      <p class="hint" id="month-start-hint" style="margin-top:0.5rem">${capFirst(startDayText(monthStart))}. A Havi és a Grafikon lap ehhez igazodik${db.cloud ? ', mindkét telefonon' : ''}.</p>
+    </section>
+
     <section>
       <h2>Megjelenítés mérete</h2>
       <div class="scale-row">
@@ -129,6 +145,16 @@ export async function renderSettings(el, ctx) {
   const scale = el.querySelector('#scale');
   const scaleVal = el.querySelector('#scale-val');
   const scaleAuto = el.querySelector('#scale-auto');
+  // Pénzügyi hónap kezdőnapja (közös beállítás).
+  el.querySelector('#month-start').addEventListener('change', async e => {
+    const day = Number(e.target.value);
+    await setMonthStartDay(day);
+    ctx.state.monthSet = false; // a Havi és Grafikon lap a mai napot tartalmazó hónapra álljon
+    el.querySelector('#month-start-hint').textContent =
+      `${capFirst(startDayText(day))}. A Havi és a Grafikon lap ehhez igazodik${db.cloud ? ', mindkét telefonon' : ''}.`;
+    toast('Pénzügyi hónap módosítva');
+  });
+
   const saveScale = () => db.setMeta(display.cloudKey(), display.getSetting()); // felhőbe
   scale.addEventListener('input', () => {
     display.setSetting(Number(scale.value)); // azonnal látszik

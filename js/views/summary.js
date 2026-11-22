@@ -3,7 +3,7 @@ import {
   ft, signed, dayKey, timeStr, parseDay, startOfDay, addDays, startOfMonth, addMonths,
   weekday, dayShort, monthLabel, esc, totals,
 } from '../format.js';
-import { monthStartDay, setMonthStartDay, periodOf, currentAnchor, rangeText } from '../period.js';
+import { monthStartDay, periodOf, currentAnchor, rangeText } from '../period.js';
 
 export function cards({ inc, exp, bal }) {
   return `
@@ -132,13 +132,6 @@ export async function renderMonth(el, ctx) {
       <div class="pager-mid"><strong>${monthLabel(month)}</strong><small>${rangeText({ from, to })}</small></div>
       <button type="button" data-step="1" aria-label="Következő hónap">›</button>
     </div>
-    <div class="period-set">
-      <label for="mstart">Hónap kezdőnapja:</label>
-      <select id="mstart">
-        ${Array.from({ length: 28 }, (_, i) => i + 1).map(d =>
-          `<option value="${d}" ${d === s ? 'selected' : ''}>${d === 1 ? '1. (naptári hónap)' : `${d}.`}</option>`).join('')}
-      </select>
-    </div>
     ${cards(totals(txs))}
     ${txs.length ? `
       ${income.length ? `<h2>Bevételek forrásonként</h2>${breakdown(sumBy(income, t => t.categoryId), i => catName(cmap, i.key))}` : ''}
@@ -156,9 +149,5 @@ export async function renderMonth(el, ctx) {
     else if (b.dataset.day) ctx.go('day', { day: parseDay(b.dataset.day) });
     else if (b.id === 'add') ctx.go('entry');
   };
-  el.onchange = async e => {
-    if (e.target.id !== 'mstart') return;
-    await setMonthStartDay(Number(e.target.value));
-    ctx.go('month', { monthSet: false });
-  };
+  el.onchange = null;
 }

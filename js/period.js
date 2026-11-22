@@ -1,16 +1,24 @@
-// Egyedi hónap (a Havi és a Grafikon lap közös időszaka).
+// Pénzügyi hónap (a Havi és a Grafikon lap közös időszaka).
 // Egy hónap a kezdőnaptól (1–28) a következő hónap kezdőnapja előtti napig tart.
-// A kezdőnap ezen a készüléken mentődik (Havi lap → Hónap kezdőnapja).
+// Alapból 8-ától a következő hónap 7-éig. A kezdőnap közös (mindkét telefonon ugyanaz),
+// és a Beállításokban módosítható.
 
 import * as db from './db.js';
 import { addDays, addMonths, startOfMonth } from './format.js';
 
+export const DEFAULT_MONTH_START = 8;
+
 export async function monthStartDay() {
-  const v = Number(await db.getMeta('monthStart'));
-  return v >= 1 && v <= 28 ? v : 1;
+  const v = Number(await db.getShared('monthStart'));
+  return v >= 1 && v <= 28 ? v : DEFAULT_MONTH_START;
 }
 
-export const setMonthStartDay = day => db.setMeta('monthStart', day);
+export const setMonthStartDay = day => db.setShared('monthStart', day);
+
+// pl. „8-ától a következő hónap 7-éig” / „naptári hónap (1-jétől a hónap végéig)”
+export const startDayText = s => (s === 1
+  ? 'naptári hónap (1-jétől a hónap végéig)'
+  : `minden hónap ${s}. napjától a következő hónap ${s - 1}. napjáig`);
 
 // A hónap (anchor) időszaka: [from, to) – a „to” már nem tartozik bele.
 export const periodOf = (anchor, s) => ({

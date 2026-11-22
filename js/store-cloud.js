@@ -29,7 +29,7 @@ let ready = null;      // az első betöltés ígérete
 let unsubs = [];
 let cutoff = 0;        // ennél újabb tételeket élőben figyeljük (kb. az utolsó 12 hónap)
 let pending = false;   // van-e még fel nem töltött tétel
-const mem = { categories: [], clients: [], recent: [], todos: [], appts: [], settings: {} };
+const mem = { categories: [], clients: [], recent: [], todos: [], appts: [], settings: {}, shared: {} };
 const changeListeners = new Set();
 
 const col = name => collection(fs, 'users', user.uid, name);
@@ -65,6 +65,7 @@ function stop() {
   mem.todos = [];
   mem.appts = [];
   mem.settings = {};
+  mem.shared = {};
 }
 
 /* ----- Élő figyelés ----- */
@@ -108,12 +109,30 @@ function listenSettings() {
   });
 }
 
+// Közös beállítások (mindkét telefonon ugyanazok, pl. a pénzügyi hónap kezdőnapja):
+// users/{uid}/settings/app.
+function listenShared() {
+  return new Promise((resolve, reject) => {
+    let first = true;
+    unsubs.push(onSnapshot(ref('settings', 'app'), snap => {
+      mem.shared = snap.data() ?? {};
+      if (first) {
+        first = false;
+        resolve();
+      } else if (!snap.metadata.hasPendingWrites) {
+        changeListeners.forEach(fn => fn()); // a másik telefonon módosították
+      }
+    }, reject));
+  });
+}
+
 export function init() {
   return (ready ??= (async () => {
     const now = new Date();
     cutoff = new Date(now.getFullYear(), now.getMonth() - 12, 1).getTime();
     await Promise.all([
       listenSettings(),
+      listenShared(),
       listen(col('categories'), snap => {
         mem.categories = snap.docs.map(d => d.data());
         // Vadonatúj fiók: az induló típusok felvétele (rögzített azonosítókkal, hogy
@@ -241,6 +260,15 @@ export async function getMeta(key) {
 export async function setMeta(key, value) {
   mem.settings = { ...mem.settings, [key]: value };
   fire(setDoc(settingsRef(), { [key]: value }, { merge: true }));
+}
+
+export async function getShared(key) {
+  return mem.shared[key];
+}
+
+export async function setShared(key, value) {
+  mem.shared = { ...mem.shared, [key]: value };
+  fire(setDoc(ref('settings', 'app'), { [key]: value }, { merge: true }));
 }
 
 /* ----- Teendőlisták (közösek: minden belépett telefon ugyanazokat látja) ----- */

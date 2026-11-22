@@ -152,9 +152,14 @@ function updateFab() {
 fab.addEventListener('click', () => go('entry'));
 
 // A Teendők fülre koppintva (ha már ott vagyunk) vissza a listák áttekintéséhez.
+// A Naptár fülre lépve mindig a havi nézet, a mai hónappal (keresés nélkül).
 for (const b of tabButtons) {
-  b.addEventListener('click', () =>
-    go(b.dataset.tab, b.dataset.tab === 'todos' && state.tab === 'todos' ? { todoId: null } : {}));
+  b.addEventListener('click', () => {
+    if (b.dataset.tab === 'calendar' && state.cal) {
+      Object.assign(state.cal, { mode: 'month', date: new Date(), searching: false });
+    }
+    go(b.dataset.tab, b.dataset.tab === 'todos' && state.tab === 'todos' ? { todoId: null } : {});
+  });
 }
 
 function showMessage(text) {

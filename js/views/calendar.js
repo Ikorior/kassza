@@ -97,7 +97,7 @@ function summary(list) {
 
 export async function renderCalendar(el, ctx) {
   const cal = (ctx.state.cal ??= {
-    mode: ['day', 'week', 'month'].includes(await db.getMeta('calMode')) ? await db.getMeta('calMode') : 'week',
+    mode: 'month', // a Naptár fülre lépve mindig a havi nézet jön (lásd app.js)
     date: new Date(),
     searching: false,
     q: '', from: '', to: '', status: 'all',
@@ -150,7 +150,6 @@ export async function renderCalendar(el, ctx) {
     if (b.dataset.mode) {
       cal.mode = b.dataset.mode;
       cal.searching = false;
-      db.setMeta('calMode', cal.mode);
       ctx.go('calendar');
     } else if (b.id === 'cal-search') {
       cal.searching = !cal.searching;
@@ -164,7 +163,6 @@ export async function renderCalendar(el, ctx) {
     } else if (b.dataset.goday) {
       cal.mode = 'day';
       cal.date = parseDay(b.dataset.goday);
-      db.setMeta('calMode', cal.mode);
       ctx.go('calendar');
     } else if (b.dataset.step) {
       const n = Number(b.dataset.step);

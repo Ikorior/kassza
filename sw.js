@@ -5,8 +5,10 @@
 // - A Firebase programkönyvtár verziószámos címről jön, az sosem változik: elég a tárolt példány.
 // Új kiadásnál a CACHE számát növelni kell (ez látszik a Beállításokban verzióként).
 
-const CACHE = 'kassza-v22';
+const CACHE = 'kassza-v23';
 const SDK = 'https://www.gstatic.com/firebasejs/';
+// Az Inter betűtípus (Google Fonts): egyszer letöltve a készüléken marad, offline is megy.
+const FONTS = ['https://fonts.googleapis.com/', 'https://fonts.gstatic.com/'];
 const TIMEOUT = 4000;
 const FILES = [
   './',
@@ -28,6 +30,7 @@ const FILES = [
   'js/views/summary.js',
   'js/views/search.js',
   'js/views/todos.js',
+  'js/views/home.js',
   'js/views/calendar.js',
   'js/views/charts.js',
   'js/views/settings.js',
@@ -88,6 +91,6 @@ self.addEventListener('fetch', event => {
   if (req.method !== 'GET') return;
   const own = new URL(req.url).origin === location.origin;
   if (own) event.respondWith(networkFirst(req));
-  else if (req.url.startsWith(SDK)) event.respondWith(cacheFirst(req));
+  else if (req.url.startsWith(SDK) || FONTS.some(f => req.url.startsWith(f))) event.respondWith(cacheFirst(req));
   // A Firebase adatforgalmához nem nyúlunk.
 });

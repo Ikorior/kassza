@@ -14,6 +14,8 @@ export const signOut = async () => {};
 export const userEmail = () => '';
 export const onChange = () => {};
 export const syncPending = () => false;
+export const lastSyncAt = () => 0;
+export const pingServer = async () => true;
 
 let opening;
 function open() {

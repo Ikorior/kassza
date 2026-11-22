@@ -9,8 +9,12 @@ import { renderLogin } from './views/login.js';
 import { renderSearch } from './views/search.js';
 import { renderTodos } from './views/todos.js';
 import { renderCalendar } from './views/calendar.js';
+import { renderHome } from './views/home.js';
+import { monthStartDay, periodOf, anchorFor } from './period.js';
+import { pad } from './format.js';
 
 const TABS = {
+  home: { title: 'Főoldal', render: renderHome },
   entry: { title: 'Új tétel', render: renderEntry },
   day: { title: 'Napi összesítő', render: renderDay },
   search: { title: 'Keresés és lista', render: renderSearch },
@@ -26,17 +30,22 @@ const title = document.getElementById('title');
 // Az alsó fülsáv gombjai és a fejléc Beállítások gombja.
 const tabButtons = [...document.querySelectorAll('button[data-tab]')];
 
-const state = { tab: 'entry', day: new Date(), month: new Date(), editId: null, presetDay: null };
+const state = { tab: 'home', day: new Date(), month: new Date(), editId: null, presetDay: null };
 let navToken = 0;
 
 // Nézetváltás; a patch-ben adható át pl. { day }, { month }, { editId }, { presetDay }.
 async function go(tab, patch = {}) {
-  Object.assign(state, { editId: null, presetDay: null, returnTo: null, apptId: null, apptNew: false, apptDate: null }, patch, { tab });
+  Object.assign(state, {
+    editId: null, presetDay: null, returnTo: null, apptId: null, apptNew: false, apptDate: null,
+    presetType: null, presetCat: null, weather: false,
+  }, patch, { tab });
   for (const b of tabButtons) {
     if (b.dataset.tab === tab) b.setAttribute('aria-current', 'page');
     else b.removeAttribute('aria-current');
   }
-  title.textContent = state.editId ? 'Tétel szerkesztése' : TABS[tab].title;
+  title.textContent = state.editId ? 'Tétel szerkesztése' : state.weather ? 'Időjárás' : TABS[tab].title;
+  updateFab();
+  updateHeader();
   // Minden nézet saját konténerbe rajzol; ha közben újabb váltás indult, a régit eldobjuk.
   const token = ++navToken;
   const page = document.createElement('div');
@@ -54,6 +63,58 @@ async function go(tab, patch = {}) {
 }
 
 const ctx = { state, go };
+
+/* ----- Fejléc: aktuális pénzügyi hónap és utolsó szinkron ----- */
+
+const topMonth = document.getElementById('top-month');
+const topSync = document.getElementById('top-sync');
+const ymd = d => `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())}.`;
+
+async function updateHeader() {
+  try {
+    const s = await monthStartDay();
+    const p = periodOf(anchorFor(new Date(), s), s);
+    const last = new Date(p.to.getFullYear(), p.to.getMonth(), p.to.getDate() - 1);
+    topMonth.textContent = `${ymd(p.from)} – ${ymd(last)}`;
+  } catch { /* még nincs betöltve */ }
+  if (!db.cloud) {
+    topSync.textContent = 'Helyi tárolás';
+  } else if (!navigator.onLine) {
+    topSync.textContent = 'Nincs internet – a telefonon tárolt adatok';
+  } else {
+    const t = db.lastSyncAt();
+    topSync.textContent = t ? `Utolsó szinkron: ${pad(new Date(t).getHours())}:${pad(new Date(t).getMinutes())}` : 'Szinkronizálás…';
+  }
+}
+setInterval(updateHeader, 30000);
+addEventListener('online', updateHeader);
+addEventListener('offline', updateHeader);
+
+// Frissítés gomb: kapcsolat-ellenőrzés a felhővel, app-frissítés keresése, a nézet újrarajzolása.
+const refreshBtn = document.getElementById('refresh');
+refreshBtn.addEventListener('click', async () => {
+  if (refreshBtn.classList.contains('spinning')) return;
+  refreshBtn.classList.add('spinning');
+  const ok = await db.pingServer();
+  navigator.serviceWorker?.getRegistration?.().then(r => r?.update()).catch(() => {});
+  refreshBtn.classList.remove('spinning');
+  updateHeader();
+  const typing = document.activeElement?.matches?.('#view input, #view textarea');
+  const editing = document.querySelector('#appt-form, form .amount-wrap input#amount') && state.tab !== 'home';
+  if (!typing && !editing) go(state.tab, { keepScroll: true, todoId: state.todoId, apptId: state.apptId, weather: state.weather });
+  toast(ok ? 'Az adatok frissek' : 'Nincs kapcsolat a felhővel – a telefonon tárolt adatok látszanak');
+});
+
+/* ----- Lebegő + gomb: új tétel (a listanézetekben) ----- */
+
+const fab = document.getElementById('fab');
+const FAB_TABS = ['home', 'day', 'search', 'month', 'charts'];
+function updateFab() {
+  const show = FAB_TABS.includes(state.tab) && !state.weather;
+  fab.hidden = !show;
+  document.body.classList.toggle('has-fab', show);
+}
+fab.addEventListener('click', () => go('entry'));
 
 // A Teendők fülre koppintva (ha már ott vagyunk) vissza a listák áttekintéséhez.
 for (const b of tabButtons) {
@@ -84,7 +145,7 @@ db.onAuth(async user => {
     await db.init();
     display.applyStored(await db.getMeta(display.cloudKey())); // a mentett méret
     document.body.classList.remove('locked');
-    await go('entry');
+    await go('home');
   } catch (err) {
     console.error(err);
     showMessage(db.cloud
@@ -101,10 +162,12 @@ db.onChange(() => {
   const typing = document.activeElement?.matches?.('#view input');
   // A naptárat sem, ha épp egy találkozót szerkesztünk.
   const editingAppt = !!document.querySelector('#appt-form');
-  if ((['day', 'month', 'charts'].includes(state.tab)
+  updateHeader();
+  if ((['home', 'day', 'month', 'charts'].includes(state.tab) && !typing
        || (['todos', 'calendar'].includes(state.tab) && !typing && !editingAppt))
       && !document.querySelector('dialog[open]')) {
-    go(state.tab, { keepScroll: true });
+    // A nyitott al-nézetek (időjárás, teendőlista) megmaradnak.
+    go(state.tab, { keepScroll: true, weather: state.weather, todoId: state.todoId });
   }
 });
 

@@ -12,10 +12,16 @@ export async function renderEntry(el, ctx) {
   const returnTo = ctx.state.returnTo;
   const back = day => (returnTo === 'search' ? ctx.go('search') : ctx.go('day', { day }));
 
-  let type = editing?.type ?? last.type;
+  // A Főoldal gyorscsempéi előre kiválaszthatják a típust és a forrást
+  // (presetType: 'income' / 'expense', presetCat: 'client' / 'other').
+  let type = editing?.type ?? ctx.state.presetType ?? last.type;
   const clientCat = cats.find(c => c.type === 'income' && c.isClientPayment && !c.archived);
   const picked = { income: last.cat.income ?? clientCat?.id ?? null, expense: last.cat.expense };
   if (editing) picked[editing.type] = editing.categoryId;
+  if (!editing && ctx.state.presetCat === 'client' && clientCat) picked.income = clientCat.id;
+  if (!editing && ctx.state.presetCat === 'other') {
+    picked.income = cats.find(c => c.type === 'income' && !c.isClientPayment && !c.archived)?.id ?? picked.income;
+  }
 
   const when = editing ? new Date(editing.timestamp) : new Date();
   const preset = ctx.state.presetDay;

@@ -9,7 +9,7 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
 import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
-  collection, doc, setDoc, deleteDoc, getDoc, getDocFromCache, getDocs, onSnapshot, query, where,
+  collection, doc, setDoc, deleteDoc, getDoc, getDocFromCache, getDocFromServer, getDocs, onSnapshot, query, where,
   writeBatch, getCountFromServer,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 
@@ -54,6 +54,23 @@ export const userEmail = () => user?.email ?? '';
 export const onChange = fn => changeListeners.add(fn);
 export const syncPending = () => pending;
 
+// Utolsó sikeres szinkron a felhővel (ms): minden, a szerverről érkezett frissítéskor.
+let lastSync = 0;
+const markSync = snap => { if (!snap.metadata.fromCache) lastSync = Date.now(); };
+export const lastSyncAt = () => lastSync;
+
+// Kapcsolat ellenőrzése (Frissítés gomb): egy kis dokumentum lekérése közvetlenül a szerverről.
+export async function pingServer() {
+  try {
+    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 6000));
+    await Promise.race([getDocFromServer(ref('settings', 'app')), timeout]);
+    lastSync = Date.now();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function stop() {
   unsubs.forEach(u => u());
   unsubs = [];
@@ -75,6 +92,7 @@ function listen(q, apply) {
     let first = true;
     unsubs.push(onSnapshot(q, { includeMetadataChanges: true }, snap => {
       apply(snap);
+      markSync(snap);
       if (first) {
         first = false;
         resolve();
@@ -98,11 +116,16 @@ function listenSettings() {
   return new Promise((resolve, reject) => {
     let first = true;
     unsubs.push(onSnapshot(settingsRef(), snap => {
-      mem.settings = snap.data() ?? {};
+      const next = snap.data() ?? {};
+      // Csak valódi (másik telefonról jött) változásnál rajzolunk újra; a saját írás
+      // visszaigazolása ugyanazt az adatot hozza, az nem számít változásnak.
+      const changed = JSON.stringify(next) !== JSON.stringify(mem.settings);
+      mem.settings = next;
+      markSync(snap);
       if (first) {
         first = false;
         resolve();
-      } else if (!snap.metadata.hasPendingWrites) {
+      } else if (changed && !snap.metadata.hasPendingWrites) {
         changeListeners.forEach(fn => fn());
       }
     }, reject));
@@ -115,11 +138,16 @@ function listenShared() {
   return new Promise((resolve, reject) => {
     let first = true;
     unsubs.push(onSnapshot(ref('settings', 'app'), snap => {
-      mem.shared = snap.data() ?? {};
+      const next = snap.data() ?? {};
+      // Csak valódi (másik telefonról jött) változásnál rajzolunk újra; a saját írás
+      // visszaigazolása ugyanazt az adatot hozza, az nem számít változásnak.
+      const changed = JSON.stringify(next) !== JSON.stringify(mem.shared);
+      mem.shared = next;
+      markSync(snap);
       if (first) {
         first = false;
         resolve();
-      } else if (!snap.metadata.hasPendingWrites) {
+      } else if (changed && !snap.metadata.hasPendingWrites) {
         changeListeners.forEach(fn => fn()); // a másik telefonon módosították
       }
     }, reject));

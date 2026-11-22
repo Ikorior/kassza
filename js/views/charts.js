@@ -78,7 +78,7 @@ function trendChart(all, month, s) {
   return KEY + frame(max, inner, 'Bevétel és kiadás az utolsó hat hónapban');
 }
 
-function donut(txs, cmap, emptyText, label) {
+export function donut(txs, cmap, emptyText, label) {
   const map = new Map();
   for (const t of txs) map.set(t.categoryId, (map.get(t.categoryId) ?? 0) + t.amount);
   let items = [...map].map(([id, amount]) => ({ name: cmap.get(id)?.name ?? 'Törölt típus', amount }))

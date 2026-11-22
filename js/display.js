@@ -15,13 +15,13 @@ export function getSetting() {
   }
 }
 
-// Az Új tétel oldal 100%-on kb. 760 pont magas és kb. 400 pont szélességre van méretezve.
+// Az Új tétel oldal 100%-on kb. 800 pont magas (fejléccel, fülsorral) és kb. 400 pont szélességre van méretezve.
 // Annyira kicsinyítünk, hogy görgetés nélkül elférjen (80–100%, 5%-os lépésekben).
 // Kezdőképernyős módban a felső és alsó rendszersáv (kb. 96 pont) is a képernyőből jön le.
 export function autoPercent() {
   const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
   const free = innerHeight - (standalone ? 96 : 0);
-  const f = Math.min(free / 760, innerWidth / 400);
+  const f = Math.min(free / 800, innerWidth / 400);
   return Math.min(100, Math.max(80, Math.floor(f * 20) * 5));
 }
 

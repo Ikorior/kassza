@@ -6,7 +6,6 @@ import {
   ft, pad, dayKey, parseDay, addDays, startOfMonth, addMonths, monthLabel, weekday, esc, groupDigits,
 } from '../format.js';
 import { toast, confirmDialog } from '../ui.js';
-import { isDayOff } from '../holidays.js';
 
 // Megbízhatóság, fontossági sorrendben (a nap színét a legfontosabb adja).
 export const STATUS = {
@@ -258,7 +257,7 @@ function renderMonth(body, cal, all, today) {
       + (list.length > 3 ? `<small>+${list.length - 3}</small>` : '');
     const label = `${longDay(d)}${list.length ? `, ${list.length} találkozó` : ''}`;
     cells.push(`
-      <button type="button" class="mon-cell ${isDayOff(d) ? 'we' : 'wd'} st-${dayStatus(list)}${d.getMonth() !== first.getMonth() ? ' out' : ''}${k === today ? ' today' : ''}"
+      <button type="button" class="mon-cell ${d.getDay() % 6 === 0 ? 'we' : 'wd'}${list.length ? ' has-appt' : ''}${d.getMonth() !== first.getMonth() ? ' out' : ''}${k === today ? ' today' : ''}"
               data-goday="${k}" aria-label="${label}">
         <span class="num">${d.getDate()}</span><span class="dots">${dots}</span>
       </button>`);

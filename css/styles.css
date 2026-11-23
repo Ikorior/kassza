@@ -561,13 +561,14 @@ input[type="range"] { width: 100%; min-height: 2.75rem; margin: 0; accent-color:
   border-radius: 0.5rem;
   background: var(--surface);
 }
-/* Napok színe: hétköznap kékből zöldbe (mint az időjárás kártya), hétvége és ünnep pirosból zöldbe. */
-.mon-cell.wd { background: linear-gradient(140deg, #1c5ca3 0%, #137b99 50%, #176b52 100%); border-color: rgba(84, 185, 201, 0.45); }
-.mon-cell.we { background: linear-gradient(140deg, #a3283a 0%, #7d4a3c 50%, #176b52 100%); border-color: rgba(255, 120, 130, 0.45); }
-/* A találkozók megbízhatósága a kártya keretén látszik (a legfontosabb szerint). */
-.mon-cell.st-sure { border-color: var(--pos); box-shadow: inset 0 0 0 2px var(--pos); }
-.mon-cell.st-maybe { border-color: var(--maybe); box-shadow: inset 0 0 0 2px var(--maybe); }
-.mon-cell.st-bad { border-color: var(--neg); box-shadow: inset 0 0 0 2px var(--neg); }
+/* Napok színe: hétköznap kékből zöldbe (mint az időjárás kártya), hétvége pirosból zöldbe. */
+.mon-cell.wd { background: linear-gradient(140deg, #1c5ca3 0%, #137b99 50%, #176b52 100%); border-color: rgba(84, 185, 201, 0.35); }
+.mon-cell.we { background: linear-gradient(140deg, #a3283a 0%, #7d4a3c 50%, #176b52 100%); border-color: rgba(255, 120, 130, 0.35); }
+/* Ahol van találkozó: jól látható, világoskék keret (a megbízhatóságot a pöttyök mutatják). */
+.mon-cell.has-appt {
+  border-color: #6fd0ff;
+  box-shadow: inset 0 0 0 2px #6fd0ff, 0 0 0.5rem rgba(111, 208, 255, 0.55);
+}
 .mon-cell .dots .dot { box-shadow: 0 0 0 1.5px rgba(0, 0, 0, 0.35); }
 .mon-cell.out { opacity: 0.4; }
 .mon-cell .num { font-weight: 700; font-size: 0.9375rem; font-variant-numeric: tabular-nums; line-height: 1.5rem; min-width: 1.5rem; }

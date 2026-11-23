@@ -5,7 +5,7 @@
 // - A Firebase programkönyvtár verziószámos címről jön, az sosem változik: elég a tárolt példány.
 // Új kiadásnál a CACHE számát növelni kell (ez látszik a Beállításokban verzióként).
 
-const CACHE = 'kassza-v28';
+const CACHE = 'kassza-v29';
 const SDK = 'https://www.gstatic.com/firebasejs/';
 // Az Inter betűtípus (Google Fonts): egyszer letöltve a készüléken marad, offline is megy.
 const FONTS = ['https://fonts.googleapis.com/', 'https://fonts.gstatic.com/'];
@@ -25,6 +25,7 @@ const FILES = [
   'js/ui.js',
   'js/display.js',
   'js/period.js',
+  'js/holidays.js',
   'js/views/login.js',
   'js/views/entry.js',
   'js/views/summary.js',

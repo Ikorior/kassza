@@ -567,9 +567,9 @@ input[type="range"] { width: 100%; min-height: 2.75rem; margin: 0; accent-color:
 .mon-cell.we { background: linear-gradient(135deg, #d4333f 0%, #d4333f 25%, #17574a 52%, #17574a 100%); border-color: transparent; }
 /* Ahol van találkozó: jól látható királykék keret (a megbízhatóságot a pöttyök mutatják). */
 .mon-cell.has-appt {
-  border: 3px solid #4169e1;
-  padding: calc(0.3125rem - 2px) calc(0.125rem - 2px);
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.85), 0 0 0.5rem rgba(65, 105, 225, 0.8);
+  border: 6px solid #4169e1;
+  padding: 0;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.85), 0 0 0.625rem rgba(65, 105, 225, 0.85);
 }
 .mon-cell .dots .dot { box-shadow: 0 0 0 1.5px rgba(0, 0, 0, 0.35); }
 .mon-cell.out { opacity: 0.4; }

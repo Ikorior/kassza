@@ -222,11 +222,42 @@ const resetPageShift = () => {
 };
 document.addEventListener('focusout', () => {
   setTimeout(() => {
-    if (!document.activeElement?.matches?.('input, textarea, select')) resetPageShift();
+    if (!document.activeElement?.matches?.('input, textarea, select')) {
+      resetPageShift();
+      document.getElementById('view').style.setProperty('--kb', '0px');
+    }
   }, 60);
 });
 window.visualViewport?.addEventListener('resize', () => {
   if (window.visualViewport.height >= window.innerHeight - 2) resetPageShift(); // billentyűzet bezárva
+  keepFieldVisible();
+});
+
+// iPhone: a görgethető rész a <main>, ezt a Safari nem görgeti a mező fölé, amikor feljön a
+// billentyűzet – a mező csak az első leütéskor ugrik elő. Ezért mi görgetjük a mezőt
+// a billentyűzet fölötti látható sávba (a címkéjével együtt).
+const FIELD = '#view input, #view textarea, #view select';
+function keepFieldVisible() {
+  const view = document.getElementById('view');
+  const vv = window.visualViewport;
+  const a = document.activeElement;
+  const kb = vv ? Math.max(0, Math.round(innerHeight - vv.height - vv.offsetTop)) : 0;
+  view.style.setProperty('--kb', a?.matches?.(FIELD) && kb > 80 ? kb + 'px' : '0px');
+  if (!vv || !a?.matches?.(FIELD) || kb <= 80) return;
+  resetPageShift();
+  const box = (a.closest('.field') || a).getBoundingClientRect();
+  const r = a.getBoundingClientRect();
+  const sticky = view.querySelector('.form-bar, .todo-bar');
+  const top = Math.max(view.getBoundingClientRect().top, vv.offsetTop)
+    + (sticky && getComputedStyle(sticky).position === 'sticky' ? sticky.offsetHeight : 0) + 8;
+  const bottom = vv.offsetTop + vv.height - 12;
+  if (r.bottom > bottom) view.scrollTop += r.bottom - bottom;      // a billentyűzet alatt van
+  else if (box.top < top) view.scrollTop -= top - box.top;         // felül, a fejléc/sáv alatt van
+}
+document.addEventListener('focusin', e => {
+  if (!e.target.matches?.(FIELD)) return;
+  // A billentyűzet animálva jön fel: többször is igazítunk.
+  for (const ms of [60, 300, 600]) setTimeout(keepFieldVisible, ms);
 });
 window.addEventListener('scroll', () => {
   if (!document.activeElement?.matches?.('input, textarea, select')) resetPageShift();

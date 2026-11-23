@@ -214,6 +214,9 @@ textarea {
   font-size: max(16px, 1.0625rem);
   resize: vertical;
 }
+textarea.note2 { min-height: 0; line-height: 1.35; }
+/* A billentyűzet magasságával megtoldjuk a görgethető részt, hogy az alsó mezők is feljebb hozhatók legyenek. */
+main::after { content: ''; display: block; height: var(--kb, 0px); }
 textarea:focus { outline: 2px solid var(--accent); outline-offset: 0; border-color: var(--accent); }
 form[data-type="income"] .amount-wrap input { color: var(--pos); }
 form[data-type="expense"] .amount-wrap input { color: var(--neg); }

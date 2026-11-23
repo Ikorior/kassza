@@ -67,7 +67,7 @@ export async function renderEntry(el, ctx) {
 
       <label class="field">
         <span>Megjegyzés</span>
-        <input id="note" type="text" maxlength="200" autocomplete="off" value="${esc(editing?.note)}">
+        <textarea id="note" class="note2" rows="2" maxlength="500">${esc(editing?.note)}</textarea>
       </label>
 
       <p class="error" id="err" role="alert" hidden></p>

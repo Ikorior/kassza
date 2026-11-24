@@ -61,6 +61,7 @@ export async function renderSettings(el, ctx) {
 
   const scaleSetting = display.getSetting();
   const monthStart = await monthStartDay();
+  const gmail = String((await db.getShared('gmailContacts')) ?? '');
   // A verziószám az offline tároló nevéből jön (sw.js → CACHE), így nem kell külön karbantartani.
   let version = null;
   try {
@@ -78,6 +79,16 @@ export async function renderSettings(el, ctx) {
         </select>
       </label>
       <p class="hint" id="month-start-hint" style="margin-top:0.5rem">${capFirst(startDayText(monthStart))}. A Havi és a Grafikon lap ehhez igazodik${db.cloud ? ', mindkét telefonon' : ''}.</p>
+    </section>
+
+    <section>
+      <h2>Gmail névjegyzék</h2>
+      <label class="field">
+        <span>Gmail-fiók címe</span>
+        <input id="gmail" type="email" inputmode="email" autocomplete="off" autocapitalize="off" spellcheck="false"
+               maxlength="120" placeholder="pl. partnerek@gmail.com" value="${esc(gmail)}">
+      </label>
+      <p class="hint" id="gmail-hint" style="margin-top:0.5rem">A Főoldal „Gmail névjegyzék” kártyája ennek a fióknak a névjegyeit nyitja meg${db.cloud ? ' (mindkét telefonon)' : ''}. A Safariban ebbe a fiókba be kell lenni jelentkezve.</p>
     </section>
 
     <section>
@@ -146,6 +157,17 @@ export async function renderSettings(el, ctx) {
   const scaleVal = el.querySelector('#scale-val');
   const scaleAuto = el.querySelector('#scale-auto');
   // Pénzügyi hónap kezdőnapja (közös beállítás).
+  el.querySelector('#gmail').addEventListener('change', async e => {
+    const v = e.target.value.trim().toLowerCase();
+    if (v && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) {
+      toast('Ez nem érvényes e-mail-cím – nem mentettem');
+      return;
+    }
+    e.target.value = v;
+    await db.setShared('gmailContacts', v);
+    toast(v ? 'Gmail-fiók elmentve' : 'Gmail-fiók törölve');
+  });
+
   el.querySelector('#month-start').addEventListener('change', async e => {
     const day = Number(e.target.value);
     await setMonthStartDay(day);

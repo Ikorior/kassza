@@ -939,7 +939,24 @@ body.has-fab main { padding-bottom: 6rem; }
   background: rgba(255, 255, 255, 0.12);
   font-size: 1.75rem;
 }
+.hero.contacts {
+  border-color: rgba(255, 216, 61, 0.6);
+  background: linear-gradient(116deg, #a5800f 0%, #6f6a22 50%, #174e3f 100%);
+  box-shadow: 0 0.625rem 1.875rem rgba(0, 23, 14, 0.27);
+}
+.hero.contacts .hero-icon {
+  display: grid;
+  place-items: center;
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 0.875rem;
+  background: rgba(255, 255, 255, 0.12);
+  font-size: 1.75rem;
+}
+.hero.contacts .hero-main small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hero.contacts .hero-side { font-size: 2rem; font-weight: 600; opacity: 0.8; }
 .hero .eyebrow { color: #ffd83d; letter-spacing: 0.08em; }
+.hero.contacts .eyebrow { color: #fff3b0; }
 .hero.weather .eyebrow { color: #bdf3ff; }
 
 .quick { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }

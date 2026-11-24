@@ -142,6 +142,7 @@ export async function renderHome(el, ctx) {
   const today = dayKey(new Date());
   const todays = appts.filter(a => a.date === today).sort((a, b) => a.time.localeCompare(b.time));
   const recent = [...txs].sort((a, b) => b.timestamp - a.timestamp).slice(0, 5);
+  const gmail = String((await db.getShared('gmailContacts')) ?? '').trim();
 
   el.innerHTML = `
     <button type="button" class="hero weather" id="wx-card">
@@ -162,6 +163,16 @@ export async function renderHome(el, ctx) {
         <small id="nd-clients"></small>
       </span>
     </section>
+
+    <button type="button" class="hero contacts" id="gc-card">
+      <span class="hero-icon">👥</span>
+      <span class="hero-main">
+        <span class="eyebrow">📇 Partnerek</span>
+        <b>Gmail névjegyzék</b>
+        <small>${gmail ? esc(gmail) : 'Érintsd meg a fiók beállításához'}</small>
+      </span>
+      <span class="hero-side" aria-hidden="true">›</span>
+    </button>
 
     <h2>Gyors műveletek</h2>
     <div class="quick">
@@ -218,6 +229,11 @@ export async function renderHome(el, ctx) {
     const b = e.target.closest('button');
     if (!b) return;
     if (b.id === 'wx-card') ctx.go('home', { weather: true });
+    else if (b.id === 'gc-card') {
+      // A megadott fiók névjegyzéke (a Safariban ebbe a fiókba be kell lenni jelentkezve).
+      if (gmail) window.open(`https://contacts.google.com/?authuser=${encodeURIComponent(gmail)}`, '_blank', 'noopener');
+      else ctx.go('settings');
+    }
     else if (b.dataset.period) { ctx.state.homePeriod = b.dataset.period; ctx.go('home', { keepScroll: true }); }
     else if (b.dataset.quick === 'client') ctx.go('entry', { presetType: 'income', presetCat: 'client' });
     else if (b.dataset.quick === 'other') ctx.go('entry', { presetType: 'income', presetCat: 'other' });

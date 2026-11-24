@@ -431,6 +431,9 @@ input[type="range"] { width: 100%; min-height: 2.75rem; margin: 0; accent-color:
   padding-bottom: 0.125rem;
 }
 
+.cal-add.rem { background: #6a4bb8; color: #fff; font-size: 1.25rem; padding-bottom: 0; }
+.empty [data-remday] { margin-top: 0.5rem; }
+
 .cal-legend { display: flex; justify-content: center; gap: 1rem; margin: 1rem 0 0; font-size: 0.8125rem; color: var(--muted); }
 .cal-legend span { display: inline-flex; align-items: center; gap: 0.375rem; }
 .dot { display: inline-block; width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--c); }

@@ -38,8 +38,9 @@ let navToken = 0;
 
 // Nézetváltás; a patch-ben adható át pl. { day }, { month }, { editId }, { presetDay }.
 async function go(tab, patch = {}) {
+  if (state.tab !== tab) state.prevTab = state.tab;
   Object.assign(state, {
-    editId: null, presetDay: null, returnTo: null, apptId: null, apptNew: false, apptDate: null,
+    editId: null, presetDay: null, returnTo: null, apptId: null, apptNew: false, apptDate: null, remNew: false,
     presetType: null, presetCat: null, weather: false, contact: null, contactsForce: false,
   }, patch, { tab });
   for (const b of tabButtons) {

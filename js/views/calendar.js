@@ -123,6 +123,7 @@ export async function renderCalendar(el, ctx) {
     searching: false,
     q: '', from: '', to: '', status: 'all',
   });
+  if (ctx.state.remNew) return renderReminderForm(el, ctx, cal, null);
   if (ctx.state.apptId || ctx.state.apptNew) return renderForm(el, ctx, cal);
 
   const all = sortAppts(await db.getAppts());
@@ -137,7 +138,8 @@ export async function renderCalendar(el, ctx) {
       </div>
       <button type="button" class="icon-btn cal-search" id="cal-search" aria-label="Keresés és szűrés"
               aria-pressed="${cal.searching}">${ICON_SEARCH}</button>
-      <button type="button" class="cal-add" id="cal-add" aria-label="Új találkozó">+</button>
+      <button type="button" class="cal-add rem" id="cal-rem" aria-label="Új emlékeztető" title="Új emlékeztető">🔔</button>
+      <button type="button" class="cal-add" id="cal-add" aria-label="Új találkozó" title="Új találkozó">+</button>
     </div>
     <div id="cal-body"></div>`;
 
@@ -175,6 +177,10 @@ export async function renderCalendar(el, ctx) {
     } else if (b.id === 'cal-search') {
       cal.searching = !cal.searching;
       ctx.go('calendar');
+    } else if (b.id === 'cal-rem') {
+      ctx.go('calendar', { remNew: true, apptDate: defaultDay() });
+    } else if (b.dataset.remday) {
+      ctx.go('calendar', { remNew: true, apptDate: b.dataset.remday });
     } else if (b.id === 'cal-add') {
       ctx.go('calendar', { apptNew: true, apptDate: defaultDay() });
     } else if (b.dataset.addday) {
@@ -222,7 +228,8 @@ function renderDay(body, cal, all, today) {
     ${list.length
       ? `<ul class="appt-list">${list.map(card).join('')}</ul>`
       : `<div class="empty"><p>Erre a napra nincs találkozó.</p>
-           <button type="button" class="btn primary" data-addday="${key}">+ Találkozó erre a napra</button></div>`}
+           <button type="button" class="btn primary" data-addday="${key}">+ Találkozó erre a napra</button>
+           <button type="button" class="btn" data-remday="${key}">🔔 Emlékeztető erre a napra</button></div>`}
     ${LEGEND}`;
   return { from: key, to: key };
 }
@@ -748,8 +755,16 @@ async function renderForm(el, ctx, cal) {
 
 /* ---------- Emlékeztető módosítása / törlése ---------- */
 
+// r: a módosítandó emlékeztető, vagy null (új emlékeztető a ctx.state.apptDate napra).
 function renderReminderForm(el, ctx, cal, r) {
-  document.getElementById('title').textContent = 'Emlékeztető';
+  const isNew = !r;
+  if (isNew) {
+    const now = new Date();
+    const date = ctx.state.apptDate ?? dayKey(now);
+    const time = date === dayKey(now) ? `${pad(Math.min(now.getHours() + 1, 23))}:00` : '09:00';
+    r = { id: db.uid(), kind: 'reminder', date, time, note: '', createdAt: Date.now() };
+  }
+  document.getElementById('title').textContent = isNew ? 'Új emlékeztető' : 'Emlékeztető módosítása';
   el.innerHTML = `
     <form class="stack" id="appt-form" novalidate>
       <div class="form-bar">
@@ -765,13 +780,14 @@ function renderReminderForm(el, ctx, cal, r) {
         <textarea id="r-note" class="note2" rows="5" maxlength="1000">${esc(r.note)}</textarea>
       </label>
       <p class="error" id="r-err" role="alert" hidden></p>
-      <button class="btn primary" id="r-save">Módosítás mentése</button>
-      <button type="button" class="btn danger-ghost" id="r-del">Emlékeztető törlése</button>
+      <button class="btn primary" id="r-save">${isNew ? 'Emlékeztető mentése' : 'Módosítás mentése'}</button>
+      ${isNew ? '' : '<button type="button" class="btn danger-ghost" id="r-del">Emlékeztető törlése</button>'}
       <button type="button" class="btn ghost" data-cancel>Mégse</button>
     </form>`;
   const $ = id => el.querySelector('#' + id);
   const form = $('appt-form');
   let dirty = false, busy = false;
+  if (isNew) setTimeout(() => $('r-note').focus(), 0);
   form.addEventListener('input', () => { $('r-err').hidden = true; dirty = true; });
   const err = (msg, field) => { $('r-err').textContent = msg; $('r-err').hidden = false; field?.focus(); };
   const back = day => { if (day) cal.date = parseDay(day); ctx.go('calendar'); };
@@ -785,7 +801,7 @@ function renderReminderForm(el, ctx, cal, r) {
     if (!date || !time) return err('Add meg a dátumot és az időpontot.');
     busy = true;
     await db.saveAppt({ ...r, date, time, note, updatedAt: Date.now() });
-    toast('Emlékeztető módosítva');
+    toast(isNew ? `Emlékeztető mentve: ${short(parseDay(date))} ${time}` : 'Emlékeztető módosítva');
     back(date);
   });
 
@@ -793,7 +809,9 @@ function renderReminderForm(el, ctx, cal, r) {
     const b = e.target.closest('button');
     if (!b || busy) return;
     if (b.hasAttribute('data-cancel')) {
-      if (dirty && !(await confirmDialog({ title: 'Elveted a módosításokat?', text: 'Az emlékeztető a korábbi állapotában marad.', ok: 'Elvetés' }))) return;
+      if (dirty && !(await confirmDialog(isNew
+        ? { title: 'Elveted az új emlékeztetőt?', text: 'A beírt szöveg nem mentődik.', ok: 'Elvetés' }
+        : { title: 'Elveted a módosításokat?', text: 'Az emlékeztető a korábbi állapotában marad.', ok: 'Elvetés' }))) return;
       back(r.date);
     } else if (b.id === 'r-del') {
       const yes = await confirmDialog({

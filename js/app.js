@@ -10,6 +10,8 @@ import { renderSearch } from './views/search.js';
 import { renderTodos } from './views/todos.js';
 import { renderCalendar } from './views/calendar.js';
 import { renderHome, refreshLive, clearCaches } from './views/home.js';
+import { renderContacts } from './views/contacts.js';
+import * as gc from './gcontacts.js';
 import { monthStartDay, periodOf, anchorFor } from './period.js';
 import { pad, dayKey } from './format.js';
 
@@ -23,6 +25,7 @@ const TABS = {
   todos: { title: 'Teendők', render: renderTodos },
   calendar: { title: 'Naptár', render: renderCalendar },
   settings: { title: 'Beállítások', render: renderSettings },
+  contacts: { title: 'Gmail névjegyzék', render: renderContacts },
 };
 
 const view = document.getElementById('view');
@@ -37,7 +40,7 @@ let navToken = 0;
 async function go(tab, patch = {}) {
   Object.assign(state, {
     editId: null, presetDay: null, returnTo: null, apptId: null, apptNew: false, apptDate: null,
-    presetType: null, presetCat: null, weather: false,
+    presetType: null, presetCat: null, weather: false, contact: null, contactsForce: false,
   }, patch, { tab });
   for (const b of tabButtons) {
     if (b.dataset.tab === tab) b.setAttribute('aria-current', 'page');
@@ -127,6 +130,7 @@ refreshBtn.addEventListener('click', async () => {
   // Minden, ami frissíthető: tárolt időjárás és névnap eldobása, a felhő újraszinkronja,
   // app-frissítés keresése, majd a fejléc és a képernyő újrarajzolása.
   clearCaches();
+  gc.clearCache();
   const ok = await db.resync();
   navigator.serviceWorker?.getRegistration?.().then(r => r?.update()).catch(() => {});
   shownDay = dayKey(new Date());
@@ -185,7 +189,10 @@ db.onAuth(async user => {
     await db.init();
     display.applyStored(await db.getMeta(display.cloudKey())); // a mentett méret
     document.body.classList.remove('locked');
-    await go('home');
+    // Visszatérés a Google-bejelentkezésből: egyenesen a névjegyzék nyílik meg.
+    const back = await gc.consumeRedirect();
+    if (back && !back.ok && !back.silent) toast('A Google-bejelentkezés nem sikerült vagy megszakadt.');
+    await go(back ? 'contacts' : 'home');
   } catch (err) {
     console.error(err);
     showMessage(db.cloud

@@ -229,11 +229,7 @@ export async function renderHome(el, ctx) {
     const b = e.target.closest('button');
     if (!b) return;
     if (b.id === 'wx-card') ctx.go('home', { weather: true });
-    else if (b.id === 'gc-card') {
-      // A megadott fiók névjegyzéke (a Safariban ebbe a fiókba be kell lenni jelentkezve).
-      if (gmail) window.open(`https://contacts.google.com/?authuser=${encodeURIComponent(gmail)}`, '_blank', 'noopener');
-      else ctx.go('settings');
-    }
+    else if (b.id === 'gc-card') ctx.go(gmail ? 'contacts' : 'settings'); // a névjegyzék az appon belül
     else if (b.dataset.period) { ctx.state.homePeriod = b.dataset.period; ctx.go('home', { keepScroll: true }); }
     else if (b.dataset.quick === 'client') ctx.go('entry', { presetType: 'income', presetCat: 'client' });
     else if (b.dataset.quick === 'other') ctx.go('entry', { presetType: 'income', presetCat: 'other' });

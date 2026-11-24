@@ -88,7 +88,7 @@ export async function renderSettings(el, ctx) {
         <input id="gmail" type="email" inputmode="email" autocomplete="off" autocapitalize="off" spellcheck="false"
                maxlength="120" placeholder="pl. partnerek@gmail.com" value="${esc(gmail)}">
       </label>
-      <p class="hint" id="gmail-hint" style="margin-top:0.5rem">A Főoldal „Gmail névjegyzék” kártyája ennek a fióknak a névjegyeit nyitja meg${db.cloud ? ' (mindkét telefonon)' : ''}. A Safariban ebbe a fiókba be kell lenni jelentkezve.</p>
+      <p class="hint" id="gmail-hint" style="margin-top:0.5rem">A Főoldal „Gmail névjegyzék” kártyája ennek a fióknak a névjegyeit mutatja az appon belül${db.cloud ? ' (mindkét telefonon)' : ''}. Első megnyitáskor telefononként egyszer be kell jelentkezni a fiókba.</p>
     </section>
 
     <section>

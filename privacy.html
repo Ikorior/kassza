@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="hu">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kassza – adatvédelem</title>
+  <style>
+    body { margin: 0; padding: 24px 16px 48px; background: #071d19; color: #f7fffb; font: 16px/1.55 system-ui, sans-serif; }
+    main { max-width: 680px; margin: 0 auto; }
+    h1 { font-size: 1.6rem; } h2 { font-size: 1.15rem; margin-top: 1.6em; color: #31e6bd; }
+    a { color: #31e6bd; } p, li { color: #d9ece6; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Kassza – adatvédelmi tájékoztató</h1>
+  <p>A Kassza egy magánhasználatú bevétel–kiadás nyilvántartó webalkalmazás, amelyet egy család használ a saját vállalkozásához.</p>
+
+  <h2>Milyen adatokat kezel az app?</h2>
+  <ul>
+    <li>A felhasználók által beírt bevételeket, kiadásokat, teendőket és naptárbejegyzéseket. Ezek a Google Firebase (Firestore) adatbázisban tárolódnak, csak a bejelentkezett fiók férhet hozzájuk.</li>
+    <li>Ha a felhasználó összekapcsolja a Gmail-fiókját, az app a Google People API-n keresztül megjeleníti a fiók névjegyeit, és a felhasználó kérésére új névjegyet vesz fel vagy módosít.</li>
+  </ul>
+
+  <h2>Google-névjegyek</h2>
+  <ul>
+    <li>A névjegyeket az app csak a telefonon jeleníti meg; nem menti el saját adatbázisba, és nem adja tovább senkinek.</li>
+    <li>A Google-hozzáférési jogosultság (token) csak a telefon böngészőjében tárolódik, legfeljebb egy óráig érvényes.</li>
+    <li>A hozzáférés bármikor visszavonható a Google-fiókban: <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>.</li>
+  </ul>
+  <p>A Google API-kból kapott adatok használata megfelel a <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a> előírásainak, a „Limited Use” követelményekkel együtt.</p>
+
+  <h2>Kapcsolat</h2>
+  <p>Kérdés esetén az app fejlesztőjét a Google bejelentkezési ablakában megadott támogatási e-mail-címen lehet elérni.</p>
+  <p><a href="./">Vissza az apphoz</a></p>
+</main>
+</body>
+</html>

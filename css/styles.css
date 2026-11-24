@@ -572,9 +572,8 @@ input[type="range"] { width: 100%; min-height: 2.75rem; margin: 0; accent-color:
 .mon-cell.wd { background: linear-gradient(135deg, #1e63d6 0%, #1e63d6 25%, #17574a 52%, #17574a 100%); border-color: transparent; }
 .mon-cell.we { background: linear-gradient(135deg, #d4333f 0%, #d4333f 25%, #17574a 52%, #17574a 100%); border-color: transparent; }
 /* Ahol van találkozó: jól látható királykék keret (a megbízhatóságot a pöttyök mutatják). */
-/* Emlékeztetős nap: 30% kék/piros → 70% lila */
-.mon-cell.wd.has-rem { background: linear-gradient(135deg, #1e63d6 0%, #1e63d6 25%, #6a4bb8 52%, #6a4bb8 100%); }
-.mon-cell.we.has-rem { background: linear-gradient(135deg, #d4333f 0%, #d4333f 25%, #6a4bb8 52%, #6a4bb8 100%); }
+/* Emlékeztetős nap: egyszínű lila */
+.mon-cell.wd.has-rem, .mon-cell.we.has-rem { background: #6a4bb8; }
 .mon-cell.has-appt {
   border: 6px solid #4169e1;
   padding: 0;

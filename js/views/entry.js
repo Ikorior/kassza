@@ -29,12 +29,13 @@ export async function renderEntry(el, ctx) {
 
   el.innerHTML = `
     <form class="stack" novalidate>
-      <div class="seg" role="group" aria-label="Tétel típusa">
+      <div class="seg${editing ? '' : ' three'}" role="group" aria-label="Tétel típusa">
         <button type="button" data-type="income">Bevétel</button>
         <button type="button" data-type="expense">Kiadás</button>
+        ${editing ? '' : '<button type="button" data-type="reminder">Emlékeztető</button>'}
       </div>
 
-      <label class="field">
+      <label class="field" id="amount-row">
         <span>Összeg</span>
         <div class="amount-wrap">
           <input id="amount" inputmode="numeric" autocomplete="off" placeholder="0"
@@ -43,7 +44,7 @@ export async function renderEntry(el, ctx) {
         </div>
       </label>
 
-      <div class="field">
+      <div class="field" id="cat-row">
         <span id="cat-label"></span>
         <div class="chips" id="chips" role="group" aria-labelledby="cat-label"></div>
         <div class="inline-add" id="newcat" hidden>
@@ -65,9 +66,11 @@ export async function renderEntry(el, ctx) {
         <label class="field"><span>Időpont</span><input id="time" type="time" value="${timeStr(when)}"></label>
       </div>
 
+      <p class="hint" id="rem-hint" hidden>Az emlékeztető a megadott napon és időpontban a Naptárba kerül. Nincs benne név és összeg, és nem számít bele az egyenlegbe.</p>
+
       <label class="field">
         <span>Megjegyzés</span>
-        <textarea id="note" class="note2" rows="2" maxlength="500">${esc(editing?.note)}</textarea>
+        <textarea id="note" class="note2" rows="2" maxlength="1000">${esc(editing?.note)}</textarea>
       </label>
 
       <p class="error" id="err" role="alert" hidden></p>
@@ -87,6 +90,17 @@ export async function renderEntry(el, ctx) {
   function paint() {
     form.dataset.type = type;
     for (const b of form.querySelectorAll('.seg button')) b.setAttribute('aria-pressed', b.dataset.type === type);
+    // Emlékeztető: csak dátum, időpont és (több soros) megjegyzés.
+    const rem = type === 'reminder';
+    $('amount-row').hidden = rem;
+    $('cat-row').hidden = rem;
+    $('rem-hint').hidden = !rem;
+    $('note').rows = rem ? 5 : 2;
+    if (rem) {
+      $('client-row').hidden = true;
+      $('save').textContent = 'Emlékeztető mentése a naptárba';
+      return;
+    }
     $('cat-label').textContent = type === 'income' ? 'Bevételi forrás' : 'Költségtípus';
 
     const list = cats.filter(c => c.type === type && (!c.archived || c.id === picked[type]));
@@ -141,8 +155,29 @@ export async function renderEntry(el, ctx) {
     }
   });
 
+  // Emlékeztető: a naptárba kerül (a találkozók mellé, közösen), nem tétel.
+  async function saveReminder() {
+    const note = $('note').value.trim();
+    if (!note) { $('note').focus(); return showErr('Írd be, mire emlékeztessen.'); }
+    const date = $('date').value, time = $('time').value.slice(0, 5);
+    if (!date || !time) return showErr('Add meg a dátumot és az időpontot.');
+    $('save').disabled = true;
+    try {
+      await db.saveAppt({ id: db.uid(), kind: 'reminder', date, time, note, createdAt: Date.now(), updatedAt: Date.now() });
+    } catch (err) {
+      console.error(err);
+      $('save').disabled = false;
+      return showErr('A mentés nem sikerült. Próbáld újra.');
+    }
+    last.type = 'reminder';
+    const d = new Date(`${date}T${time}`);
+    toast(`Emlékeztető a naptárba: ${d.toLocaleDateString('hu-HU', { month: 'short', day: 'numeric' })} ${time}`);
+    ctx.go('entry');
+  }
+
   form.addEventListener('submit', async e => {
     e.preventDefault();
+    if (type === 'reminder') return saveReminder();
     const amount = parseInt($('amount').value.replace(/\D/g, ''), 10);
     if (!amount) { $('amount').focus(); return showErr('Írd be az összeget.'); }
     if (!picked[type]) return showErr(type === 'income' ? 'Válassz bevételi forrást.' : 'Válassz költségtípust.');

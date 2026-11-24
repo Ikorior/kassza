@@ -183,8 +183,11 @@ export async function renderHome(el, ctx) {
     </div>
 
     ${todays.length ? `
-      <div class="home-head"><h2>Mai találkozók</h2><button type="button" data-goto="calendar">Naptár</button></div>
-      <ul class="list">${todays.map(a => `
+      <div class="home-head"><h2>${todays.some(a => a.kind === 'reminder') ? 'Ma a naptárban' : 'Mai találkozók'}</h2><button type="button" data-goto="calendar">Naptár</button></div>
+      <ul class="list">${todays.map(a => a.kind === 'reminder' ? `
+        <li><button type="button" class="appt-mini s-rem" data-appt="${a.id}">
+          <span class="t">${a.time}</span><span class="n">🔔 ${esc(String(a.note ?? '').split('\n')[0])}</span>
+        </button></li>` : `
         <li><button type="button" class="appt-mini s-${a.status}" data-appt="${a.id}">
           <span class="t">${a.time}–${a.arriveTo || ''}</span><span class="n">${esc(a.name)}</span>
           ${a.amount ? `<span class="a">${ft(a.amount)}</span>` : ''}

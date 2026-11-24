@@ -15,6 +15,9 @@ export const STATUS = {
 };
 const ORDER = Object.keys(STATUS);
 const dayStatus = list => ORDER.find(s => list.some(a => a.status === s)) ?? 'none';
+// Emlékeztető: a találkozók mellett tárolt bejegyzés, csak dátum + időpont + megjegyzés.
+export const isRem = a => a.kind === 'reminder';
+const remTitle = a => String(a.note ?? '').split('\n')[0];
 
 // Ügyfélidő: csak egész órák.
 const DURATIONS = Array.from({ length: 12 }, (_, i) => (i + 1) * 60); // 1–12 óra
@@ -54,6 +57,7 @@ const byDay = list => {
 const LEGEND = `
   <p class="cal-legend">
     ${ORDER.map(s => `<span><i class="dot s-${s}"></i>${STATUS[s].short}</span>`).join('')}
+    <span><i class="dot s-rem"></i>Emlékeztető</span>
   </p>`;
 
 const ICON_SEARCH = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>';
@@ -75,6 +79,17 @@ function feeBreakdown(a) {
 }
 
 function card(a) {
+  if (isRem(a)) {
+    return `
+    <li><button type="button" class="appt s-rem" data-appt="${a.id}">
+      <span class="appt-time">${a.time}</span>
+      <span class="appt-main">
+        <small class="appt-status">🔔 Emlékeztető</small>
+        <span class="rem-note">${esc(a.note)}</span>
+      </span>
+      <span class="appt-amt"></span>
+    </button></li>`;
+  }
   const sub = [a.address, a.note, feeBreakdown(a)].filter(Boolean);
   return `
     <li><button type="button" class="appt s-${a.status}" data-appt="${a.id}">
@@ -89,10 +104,16 @@ function card(a) {
     </button></li>`;
 }
 
+// „2 találkozó · 1 emlékeztető” (üres, ha egyik sincs).
+function countLabel(list) {
+  const rem = list.filter(isRem).length, appt = list.length - rem;
+  return [appt ? `${appt} találkozó` : '', rem ? `${rem} emlékeztető` : ''].filter(Boolean).join(' · ');
+}
+
 function summary(list) {
   if (!list.length) return 'Nincs találkozó';
   const sure = list.filter(a => a.status === 'sure').reduce((s, a) => s + (a.amount || 0), 0);
-  return `${list.length} találkozó${sure ? ` · biztos: ${ft(sure)}` : ''}`;
+  return `${countLabel(list)}${sure ? ` · biztos: ${ft(sure)}` : ''}`;
 }
 
 export async function renderCalendar(el, ctx) {
@@ -224,9 +245,12 @@ function renderWeek(body, cal, all, today) {
         <section class="wk-day st-${dayStatus(list)}${k === today ? ' today' : ''}">
           <button type="button" class="wk-head" data-goday="${k}">
             <b>${cap(weekday(d))}</b><span>${short(d)}</span>
-            <small>${list.length ? `${list.length} találkozó` : ''}</small>
+            <small>${countLabel(list)}</small>
           </button>
-          ${list.length ? `<ul class="wk-list">${list.map(a => `
+          ${list.length ? `<ul class="wk-list">${list.map(a => isRem(a) ? `
+            <li><button type="button" class="appt-mini s-rem" data-appt="${a.id}">
+              <span class="t">${a.time}</span><span class="n">🔔 ${esc(remTitle(a))}</span>
+            </button></li>` : `
             <li><button type="button" class="appt-mini s-${a.status}" data-appt="${a.id}">
               <span class="t">${a.time}–${arriveTo(a)}</span><span class="n">${esc(a.name)}</span>
               ${confirmList(a).length ? '<span class="sms" title="SMS-megerősítés kérve">SMS</span>' : ''}
@@ -253,11 +277,13 @@ function renderMonth(body, cal, all, today) {
   for (let d = gridStart; d <= gridEnd; d = addDays(d, 1)) {
     const k = dayKey(d);
     const list = map.get(k) ?? [];
-    const dots = list.slice(0, 3).map(a => `<i class="dot s-${a.status}"></i>`).join('')
+    const dots = list.slice(0, 3).map(a => `<i class="dot s-${isRem(a) ? 'rem' : a.status}"></i>`).join('')
       + (list.length > 3 ? `<small>+${list.length - 3}</small>` : '');
-    const label = `${longDay(d)}${list.length ? `, ${list.length} találkozó` : ''}`;
+    const label = `${longDay(d)}${list.length ? `, ${countLabel(list)}` : ''}`;
+    // A kék keret a munkás (találkozós) napoké; a csak emlékeztetős napot a pont jelzi.
+    const work = list.some(a => !isRem(a));
     cells.push(`
-      <button type="button" class="mon-cell ${d.getDay() % 6 === 0 ? 'we' : 'wd'}${list.length ? ' has-appt' : ''}${d.getMonth() !== first.getMonth() ? ' out' : ''}${k === today ? ' today' : ''}"
+      <button type="button" class="mon-cell ${d.getDay() % 6 === 0 ? 'we' : 'wd'}${work ? ' has-appt' : ''}${d.getMonth() !== first.getMonth() ? ' out' : ''}${k === today ? ' today' : ''}"
               data-goday="${k}" aria-label="${label}">
         <span class="num">${d.getDate()}</span><span class="dots">${dots}</span>
       </button>`);
@@ -348,9 +374,10 @@ async function renderForm(el, ctx, cal) {
   const editing = ctx.state.apptId ? await db.getAppt(ctx.state.apptId) : null;
   if (ctx.state.apptId && !editing) {
     // Közben a másik telefonon törölték.
-    toast('Ez a találkozó már nem létezik');
+    toast('Ez a bejegyzés már nem létezik');
     return ctx.go('calendar');
   }
+  if (editing && isRem(editing)) return renderReminderForm(el, ctx, cal, editing);
 
   // Bevétel mentése: csak már mentett és lejárt találkozónál; ha már van hozzá bevétel, azt mutatjuk.
   // A gomb és a tájékoztatás is benne van; hogy melyik látszik, az űrlap aktuális adataiból
@@ -718,3 +745,67 @@ async function renderForm(el, ctx, cal) {
   };
 }
 
+
+/* ---------- Emlékeztető módosítása / törlése ---------- */
+
+function renderReminderForm(el, ctx, cal, r) {
+  document.getElementById('title').textContent = 'Emlékeztető';
+  el.innerHTML = `
+    <form class="stack" id="appt-form" novalidate>
+      <div class="form-bar">
+        <button type="button" class="btn small" data-cancel>Mégse</button>
+        <button class="btn small primary">Mentés</button>
+      </div>
+      <div class="row2">
+        <label class="field"><span>Dátum</span><input id="r-date" type="date" value="${r.date}"></label>
+        <label class="field"><span>Időpont</span><input id="r-time" type="time" value="${r.time}"></label>
+      </div>
+      <label class="field">
+        <span>Megjegyzés</span>
+        <textarea id="r-note" class="note2" rows="5" maxlength="1000">${esc(r.note)}</textarea>
+      </label>
+      <p class="error" id="r-err" role="alert" hidden></p>
+      <button class="btn primary" id="r-save">Módosítás mentése</button>
+      <button type="button" class="btn danger-ghost" id="r-del">Emlékeztető törlése</button>
+      <button type="button" class="btn ghost" data-cancel>Mégse</button>
+    </form>`;
+  const $ = id => el.querySelector('#' + id);
+  const form = $('appt-form');
+  let dirty = false, busy = false;
+  form.addEventListener('input', () => { $('r-err').hidden = true; dirty = true; });
+  const err = (msg, field) => { $('r-err').textContent = msg; $('r-err').hidden = false; field?.focus(); };
+  const back = day => { if (day) cal.date = parseDay(day); ctx.go('calendar'); };
+
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    if (busy) return;
+    const note = $('r-note').value.trim();
+    const date = $('r-date').value, time = $('r-time').value.slice(0, 5);
+    if (!note) return err('Írd be, mire emlékeztessen.', $('r-note'));
+    if (!date || !time) return err('Add meg a dátumot és az időpontot.');
+    busy = true;
+    await db.saveAppt({ ...r, date, time, note, updatedAt: Date.now() });
+    toast('Emlékeztető módosítva');
+    back(date);
+  });
+
+  el.onclick = async e => {
+    const b = e.target.closest('button');
+    if (!b || busy) return;
+    if (b.hasAttribute('data-cancel')) {
+      if (dirty && !(await confirmDialog({ title: 'Elveted a módosításokat?', text: 'Az emlékeztető a korábbi állapotában marad.', ok: 'Elvetés' }))) return;
+      back(r.date);
+    } else if (b.id === 'r-del') {
+      const yes = await confirmDialog({
+        title: 'Törlöd az emlékeztetőt?',
+        text: `${short(parseDay(r.date))} ${r.time} – ${remTitle(r)}${db.cloud ? ' – minden belépett telefonról' : ''}. Ez nem vonható vissza.`,
+        ok: 'Emlékeztető törlése',
+      });
+      if (!yes) return;
+      busy = true;
+      await db.deleteAppt(r.id);
+      toast('Emlékeztető törölve');
+      back(r.date);
+    }
+  };
+}

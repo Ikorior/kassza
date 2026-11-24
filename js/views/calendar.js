@@ -290,7 +290,7 @@ function renderMonth(body, cal, all, today) {
     // A kék keret a munkás (találkozós) napoké; a csak emlékeztetős napot a pont jelzi.
     const work = list.some(a => !isRem(a));
     cells.push(`
-      <button type="button" class="mon-cell ${d.getDay() % 6 === 0 ? 'we' : 'wd'}${work ? ' has-appt' : ''}${d.getMonth() !== first.getMonth() ? ' out' : ''}${k === today ? ' today' : ''}"
+      <button type="button" class="mon-cell ${d.getDay() % 6 === 0 ? 'we' : 'wd'}${work ? ' has-appt' : ''}${list.some(isRem) ? ' has-rem' : ''}${d.getMonth() !== first.getMonth() ? ' out' : ''}${k === today ? ' today' : ''}"
               data-goday="${k}" aria-label="${label}">
         <span class="num">${d.getDate()}</span><span class="dots">${dots}</span>
       </button>`);

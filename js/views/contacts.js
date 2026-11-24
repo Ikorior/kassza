@@ -3,13 +3,12 @@ import { esc } from '../format.js';
 import { toast } from '../ui.js';
 import * as gc from '../gcontacts.js';
 
-// Gmail-névjegyzék az appon belül: lista + keresés, részletek (hívás, SMS, e-mail, térkép),
+// Gmail-névjegyzék az appon belül: lista + keresés, részletek (e-mail, térkép; hívás/SMS szándékosan nincs),
 // új névjegy felvétele egyenesen a Gmail-fiókba.
 
 const q = { text: '' };
 const initials = name => name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
 const norm = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-const telHref = v => 'tel:' + v.replace(/[^\d+]/g, '');
 
 export async function renderContacts(el, ctx) {
   const gmail = String((await db.getShared('gmailContacts')) ?? '').trim();
@@ -115,8 +114,7 @@ function renderDetail(el, ctx, bar, c) {
       ${c.org ? `<p>${esc(c.org)}</p>` : ''}
     </div>
     <div class="cd-card">
-      ${c.phones.map(p => row('📞', p.type || 'Telefon', p.value,
-        `<a class="btn small" href="${telHref(p.value)}">Hívás</a><a class="btn small" href="sms:${p.value.replace(/[^\d+]/g, '')}">SMS</a>`)).join('')}
+      ${c.phones.map(p => row('📞', p.type || 'Telefon', p.value, '')).join('')}
       ${c.emails.map(m => row('✉️', m.type || 'E-mail', m.value, `<a class="btn small" href="mailto:${encodeURIComponent(m.value)}">Levél</a>`)).join('')}
       ${c.addresses.map(a => row('📍', a.type || 'Cím', a.value,
         `<a class="btn small" href="https://maps.apple.com/?q=${encodeURIComponent(a.value)}">Térkép</a>`)).join('')}

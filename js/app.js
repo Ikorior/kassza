@@ -12,6 +12,7 @@ import { renderCalendar } from './views/calendar.js';
 import { renderHome, refreshLive, clearCaches } from './views/home.js';
 import { renderContacts } from './views/contacts.js';
 import * as gc from './gcontacts.js';
+import { initClearButtons } from './clearfield.js';
 import { monthStartDay, periodOf, anchorFor } from './period.js';
 import { pad, dayKey } from './format.js';
 
@@ -245,6 +246,8 @@ window.visualViewport?.addEventListener('resize', () => {
 // billentyűzet – a mező csak az első leütéskor ugrik elő. Ezért mi görgetjük a mezőt
 // a billentyűzet fölötti látható sávba (a címkéjével együtt).
 const FIELD = '#view input, #view textarea, #view select';
+initClearButtons(); // ⓧ törlő gomb minden szöveges mezőben
+
 function keepFieldVisible() {
   const view = document.getElementById('view');
   const vv = window.visualViewport;

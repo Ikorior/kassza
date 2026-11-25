@@ -14,10 +14,11 @@ function presets() {
   const monday = addDays(now, -((now.getDay() + 6) % 7));
   return [
     ['today', 'Ma', dayKey(now), dayKey(now)],
-    ['week', 'Ez a hét', dayKey(monday), dayKey(now)],
-    ['month', 'Ez a hónap', dayKey(startOfMonth(now)), dayKey(now)],
-    ['prev', 'Előző hónap', dayKey(addMonths(now, -1)), dayKey(addDays(startOfMonth(now), -1))],
-    ['year', 'Idén', dayKey(new Date(now.getFullYear(), 0, 1)), dayKey(now)],
+    // A hét / hónap / év végéig, hogy a későbbi napokra szóló emlékeztetők is benne legyenek.
+    ['week', 'Ez a hét', dayKey(monday), dayKey(addDays(monday, 6))],
+    ['month', 'Ez a hónap', dayKey(startOfMonth(now)), dayKey(addDays(addMonths(startOfMonth(now), 1), -1))],
+    ['prev', 'Előző hónap', dayKey(addMonths(startOfMonth(now), -1)), dayKey(addDays(startOfMonth(now), -1))],
+    ['year', 'Idén', dayKey(new Date(now.getFullYear(), 0, 1)), dayKey(new Date(now.getFullYear(), 11, 31))],
     ['all', 'Minden', '', ''],
   ];
 }
@@ -31,13 +32,14 @@ export async function renderSearch(el, ctx) {
       <label class="field">
         <span>Keresés</span>
         <input id="q" type="search" autocomplete="off" enterkeyhint="search" value="${esc(f.q)}"
-               placeholder="Ügyfél, megjegyzés, típus vagy összeg">
+               placeholder="Ügyfél, megjegyzés, emlékeztető, típus vagy összeg">
       </label>
 
-      <div class="seg three" role="group" aria-label="Tétel típusa">
+      <div class="seg four" role="group" aria-label="Tétel típusa">
         <button type="button" data-ftype="all">Mind</button>
         <button type="button" data-ftype="income">Bevétel</button>
         <button type="button" data-ftype="expense">Kiadás</button>
+        <button type="button" data-ftype="reminder">Emlékeztető</button>
       </div>
 
       <div class="field">
@@ -75,9 +77,13 @@ export async function renderSearch(el, ctx) {
       paintResults('A kezdő dátum későbbi, mint a záró dátum.');
       return;
     }
-    const [txs, cats] = await Promise.all([db.txInRange(from, to), db.getCategories()]);
+    const [txs, cats, appts] = await Promise.all([db.txInRange(from, to), db.getCategories(), db.getAppts()]);
     if (token !== loadToken) return;
-    rows = txs.reverse(); // legújabb elöl
+    // Az emlékeztetők (a naptárból) is találatok: tételként kezeljük őket, összeg nélkül.
+    const rems = appts.filter(a => a.kind === 'reminder').map(a => ({
+      id: a.id, type: 'reminder', note: a.note ?? '', timestamp: new Date(`${a.date}T${a.time}`).getTime(),
+    })).filter(r => r.timestamp >= from && r.timestamp < to);
+    rows = [...txs, ...rems].sort((a, b) => b.timestamp - a.timestamp); // legújabb elöl
     cmap = new Map(cats.map(c => [c.id, c]));
     shown = PAGE;
     paintResults();
@@ -88,8 +94,9 @@ export async function renderSearch(el, ctx) {
     const q = norm(f.q.trim());
     if (!q) return true;
     const digits = q.replace(/\s/g, '');
-    if (/^\d+$/.test(digits) && String(t.amount).includes(digits)) return true;
-    const hay = norm([t.clientName, t.note, cmap.get(t.categoryId)?.name].filter(Boolean).join(' '));
+    if (t.type !== 'reminder' && /^\d+$/.test(digits) && String(t.amount).includes(digits)) return true;
+    const hay = norm((t.type === 'reminder' ? ['Emlékeztető', t.note]
+      : [t.clientName, t.note, cmap.get(t.categoryId)?.name]).filter(Boolean).join(' '));
     return q.split(/\s+/).every(word => hay.includes(word));
   }
 
@@ -105,6 +112,8 @@ export async function renderSearch(el, ctx) {
         : 'Ebben az időszakban nincs rögzített tétel.'}</p></div>`;
       return;
     }
+    const money = list => list.filter(t => t.type !== 'reminder'); // az összegekbe nem számít
+    const remCount = hits.length - money(hits).length;
 
     const visible = hits.slice(0, shown);
     const groups = new Map();
@@ -115,16 +124,24 @@ export async function renderSearch(el, ctx) {
     }
 
     results.innerHTML = `
-      <h2>Találatok (${hits.length} tétel)</h2>
-      ${cards(totals(hits))}
+      <h2>Találatok (${[money(hits).length ? `${money(hits).length} tétel` : '', remCount ? `${remCount} emlékeztető` : ''].filter(Boolean).join(', ')})</h2>
+      ${money(hits).length ? cards(totals(money(hits))) : ''}
       ${[...groups].map(([k, list]) => {
-        const s = totals(list);
+        const s = totals(money(list));
         return `
           <div class="day-head">
             <button type="button" data-day="${k}">${dayShort(parseDay(k))}</button>
             <span>${s.inc ? `<span class="pos">+${ft(s.inc)}</span>` : ''}${s.inc && s.exp ? ' ' : ''}${s.exp ? `<span class="neg">−${ft(s.exp)}</span>` : ''}</span>
           </div>
           <ul class="list">${list.map(t => {
+            if (t.type === 'reminder') {
+              return `
+              <li><button type="button" class="tx" data-rem="${t.id}">
+                <span class="tx-time">${timeStr(new Date(t.timestamp))}</span>
+                <span class="tx-main"><b class="rem-label">🔔 Emlékeztető</b><small class="rem-text">${esc(t.note)}</small></span>
+                <span class="tx-amt"></span>
+              </button></li>`;
+            }
             const sub = [t.clientName, t.note].filter(Boolean).join(' · ');
             return `
               <li><button type="button" class="tx" data-id="${t.id}">
@@ -169,6 +186,8 @@ export async function renderSearch(el, ctx) {
     } else if (b.id === 'more') {
       shown += PAGE;
       paintResults();
+    } else if (b.dataset.rem) {
+      ctx.go('calendar', { apptId: b.dataset.rem, returnTo: 'search' });
     } else if (b.dataset.id) {
       ctx.go('entry', { editId: b.dataset.id, returnTo: 'search' });
     } else if (b.dataset.day) {

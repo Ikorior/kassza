@@ -790,7 +790,12 @@ function renderReminderForm(el, ctx, cal, r) {
   if (isNew) setTimeout(() => $('r-note').focus(), 0);
   form.addEventListener('input', () => { $('r-err').hidden = true; dirty = true; });
   const err = (msg, field) => { $('r-err').textContent = msg; $('r-err').hidden = false; field?.focus(); };
-  const back = day => { if (day) cal.date = parseDay(day); ctx.go('calendar'); };
+  const fromSearch = ctx.state.returnTo === 'search';
+  const back = day => {
+    if (fromSearch) return ctx.go('search');
+    if (day) cal.date = parseDay(day);
+    ctx.go('calendar');
+  };
 
   form.addEventListener('submit', async e => {
     e.preventDefault();

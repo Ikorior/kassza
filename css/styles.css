@@ -397,6 +397,9 @@ input[type="range"] { width: 100%; min-height: 2.75rem; margin: 0; accent-color:
 .s-maybe { --c: var(--maybe); --cb: var(--maybe-bg); }
 .s-bad { --c: var(--neg); --cb: var(--bad-bg); }
 .s-rem { --c: #b48cff; --cb: rgba(180, 140, 255, 0.16); }
+.tx-main .rem-label { color: #b48cff; }
+.tx-main .rem-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.seg button[data-ftype="reminder"] { font-size: 0.8125rem; }
 .appt-main .rem-note { display: block; white-space: pre-wrap; overflow-wrap: anywhere; }
 .seg button[data-type="reminder"][aria-pressed="true"] { background: #6a4bb8; color: #fff; }
 

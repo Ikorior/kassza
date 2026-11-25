@@ -464,6 +464,9 @@ input[type="range"] { width: 100%; min-height: 2.75rem; margin: 0; accent-color:
 .appt-main .appt-confirm { color: var(--ink); white-space: normal; }
 
 /* Díjak: három mező egy sorban, az Összes díj számolt (nem szerkeszthető) */
+/* Ügyfélidő + Borravaló egymás mellett, fele-fele szélességben. */
+.dur-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; }
+.dur-row .amount-wrap.compact input { min-width: 0; }
 .fee-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.5rem; }
 .fee-row .amount-wrap.compact { padding: 0 0.5rem; gap: 0.25rem; }
 .fee-row .amount-wrap.compact input { font-size: max(16px, 1rem); min-width: 0; }

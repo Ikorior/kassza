@@ -38,12 +38,24 @@ const state = { tab: 'home', day: new Date(), month: new Date(), editId: null, p
 let navToken = 0;
 
 // Nézetváltás; a patch-ben adható át pl. { day }, { month }, { editId }, { presetDay }.
+// Műveleti űrlap: tétel (bevétel / kiadás / emlékeztető), találkozó vagy emlékeztető szerkesztése.
+const isForm = (tab, s) => tab === 'entry' || (tab === 'calendar' && !!(s.apptId || s.apptNew || s.remNew));
+
 async function go(tab, patch = {}) {
   if (state.tab !== tab) state.prevTab = state.tab;
+  // Űrlapba lépéskor megjegyezzük, honnan jöttünk (fül, naptárnézet, görgetés),
+  // hogy a Mégse pontosan oda vigyen vissza.
+  const wasForm = isForm(state.tab, state);
+  const from = {
+    tab: state.tab, todoId: state.todoId, weather: state.weather, scroll: view.scrollTop,
+    cal: state.cal ? { ...state.cal } : null,
+  };
   Object.assign(state, {
     editId: null, presetDay: null, returnTo: null, apptId: null, apptNew: false, apptDate: null, remNew: false,
     presetType: null, presetCat: null, weather: false, contact: null, contactsForce: false,
   }, patch, { tab });
+  if (!isForm(tab, state)) state.origin = null;
+  else if (!wasForm) state.origin = from;
   for (const b of tabButtons) {
     if (b.dataset.tab === tab) b.setAttribute('aria-current', 'page');
     else b.removeAttribute('aria-current');
@@ -64,10 +76,19 @@ async function go(tab, patch = {}) {
   }
   if (token !== navToken) return;
   view.replaceChildren(page);
-  if (!patch.keepScroll) view.scrollTop = 0;
+  if (patch.scrollTo != null) view.scrollTop = patch.scrollTo;
+  else if (!patch.keepScroll) view.scrollTop = 0;
 }
 
-const ctx = { state, go };
+// Vissza oda, ahonnan az űrlapot megnyitották (ha nem tudjuk, a fallback nézetre).
+function goBack(fallback = 'home', fallbackPatch = {}) {
+  const o = state.origin;
+  if (!o) return go(fallback, fallbackPatch);
+  if (o.cal && state.cal) Object.assign(state.cal, o.cal);
+  return go(o.tab, { todoId: o.todoId, weather: o.weather, scrollTo: o.scroll });
+}
+
+const ctx = { state, go, goBack };
 
 /* ----- Fejléc: aktuális pénzügyi hónap és utolsó szinkron ----- */
 

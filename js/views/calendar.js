@@ -743,7 +743,7 @@ async function renderForm(el, ctx, cal) {
         });
         if (!yes) return;
       }
-      back(editing?.date);
+      ctx.goBack('calendar'); // vissza oda, ahonnan a találkozót megnyitották
     } else if (b.id === 'a-del') {
       await locked(async () => {
         const yes = await confirmDialog({
@@ -829,7 +829,7 @@ function renderReminderForm(el, ctx, cal, r) {
       if (dirty && !(await confirmDialog(isNew
         ? { title: 'Elveted az új emlékeztetőt?', text: 'A beírt szöveg nem mentődik.', ok: 'Elvetés' }
         : { title: 'Elveted a módosításokat?', text: 'Az emlékeztető a korábbi állapotában marad.', ok: 'Elvetés' }))) return;
-      back(r.date);
+      ctx.goBack('calendar'); // vissza oda, ahonnan az emlékeztetőt megnyitották
     } else if (b.id === 'r-del') {
       const yes = await confirmDialog({
         title: 'Törlöd az emlékeztetőt?',

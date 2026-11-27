@@ -76,7 +76,7 @@ export async function renderEntry(el, ctx) {
       <p class="error" id="err" role="alert" hidden></p>
 
       <button class="btn primary" id="save"></button>
-      ${editing ? '' : '<button type="button" class="btn ghost" id="rem-cancel" hidden>Mégse</button>'}
+      ${editing ? '' : '<button type="button" class="btn ghost" id="new-cancel">Mégse</button>'}
       ${editing ? `
         <button type="button" class="btn danger-ghost" id="del">Tétel törlése</button>
         <button type="button" class="btn ghost" id="cancel">Mégse</button>` : ''}
@@ -97,7 +97,6 @@ export async function renderEntry(el, ctx) {
     $('cat-row').hidden = rem;
     $('rem-hint').hidden = !rem;
     $('note').rows = rem ? 5 : 2;
-    if ($('rem-cancel')) $('rem-cancel').hidden = !rem;
     if (rem) {
       $('client-row').hidden = true;
       $('save').textContent = 'Emlékeztető mentése a naptárba';
@@ -143,15 +142,16 @@ export async function renderEntry(el, ctx) {
     else if (b.dataset.cat) { picked[type] = b.dataset.cat; clearErr(); paint(); }
     else if (b.id === 'addcat') { $('newcat').hidden = false; $('newcat-name').focus(); }
     else if (b.id === 'newcat-add') addCategory();
-    else if (b.id === 'cancel') back(new Date(editing.timestamp));
-    else if (b.id === 'rem-cancel') {
-      // Kilépés az emlékeztetőből: ha már írt bele, rákérdezünk; vissza oda, ahonnan jött.
-      if ($('note').value.trim() && !(await confirmDialog({
-        title: 'Elveted az emlékeztetőt?', text: 'A beírt szöveg nem mentődik.', ok: 'Elvetés',
+    else if (b.id === 'cancel') ctx.goBack('day', { day: new Date(editing.timestamp) });
+    else if (b.id === 'new-cancel') {
+      // Kilépés az új tételből: ha már írt bele, rákérdezünk; vissza oda, ahonnan jött.
+      const typed = $('note').value.trim() || (type !== 'reminder' && $('amount').value.trim());
+      if (typed && !(await confirmDialog({
+        title: type === 'reminder' ? 'Elveted az emlékeztetőt?' : 'Elveted a tételt?',
+        text: 'A beírt adatok nem mentődnek.', ok: 'Elvetés',
       }))) return;
-      last.type = 'income';
-      const prev = ctx.state.prevTab;
-      ctx.go(prev && prev !== 'entry' ? prev : 'home');
+      if (type === 'reminder') last.type = 'income';
+      ctx.goBack('home');
     }
     else if (b.id === 'del') {
       const yes = await confirmDialog({
